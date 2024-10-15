@@ -16,7 +16,4 @@ __pycache__/
 # Ignore Jupyter Notebook checkpoints
 .ipynb_checkpoints/
 
-# Ignore result json file
-*.json
-
 *.conda
