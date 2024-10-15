@@ -8,6 +8,10 @@ __pycache__/
 # Ignore log files
 *.log
 
+# Ignore system files
+.DS.Store
+*.idea
+
 # Ignore other common files
 *.bak
 *.swp
