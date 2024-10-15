@@ -20,3 +20,7 @@ __pycache__/
 *.json
 
 *.conda
+
+test/
+recipe_api_test.py
+discord_hook.py
