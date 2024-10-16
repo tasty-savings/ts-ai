@@ -59,7 +59,7 @@ async def process_recipe(session, recipe_url, type_key, situ_key, ing_key, metho
             views = '0'
         servings = safe_select(soup_r, 'div.view2_summary.st3 > div.view2_summary_info > span.view2_summary_info1')
         if servings:
-            servings = re.sub(r'[^0-9]', '', servings) + '인분'
+            servings = re.sub(r'[^0-9]', '', servings)
         else:
             return None
 
