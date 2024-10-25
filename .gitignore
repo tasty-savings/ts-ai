@@ -22,3 +22,5 @@ __pycache__/
 .ipynb_checkpoints/
 *.conda
 
+# 가상환경
+/.venv/
