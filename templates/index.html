@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>레시피 생성기</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #4CAF50;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .input-container {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #4CAF50;
+            border-radius: 25px;
+            font-size: 16px;
+        }
+        input[type="submit"] {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        input[type="submit"]:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>당신의 취향과 냉장고 속의 재료만 입력하시면<br>최적의 레시피를 추천해 드려요</h1>
+    <form method="POST">
+        <div class="input-container">
+            <label for="user_character">유저의 특성:</label>
+            <input type="text" id="user_character" name="user_character" required>
+        </div>
+        <div class="input-container">
+            <label for="menu_name">메뉴명:</label>
+            <input type="text" id="menu_name" name="menu_name" required>
+        </div>
+        <div class="input-container">
+            <label for="expired_ingredients">유통기한 임박한 재료:</label>
+            <input type="text" id="expired_ingredients" name="expired_ingredients" required>
+        </div>
+        <div class="input-container">
+            <label for="owned_ingredients">보유한 재료:</label>
+            <input type="text" id="owned_ingredients" name="owned_ingredients" required>
+        </div>
+        <input type="submit" value="레시피 생성">
+    </form>
+</body>
+</html>
