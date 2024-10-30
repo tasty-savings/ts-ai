@@ -24,3 +24,6 @@ __pycache__/
 
 # 가상환경
 /.venv/
+
+# AWS
+aws_key.py
