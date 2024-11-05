@@ -9,5 +9,3 @@ RECIPE_API = os.getenv("RECIPE_API")
 
 # OpenAI API 키 설정
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-print(OPENAI_API_KEY)
