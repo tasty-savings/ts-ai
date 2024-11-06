@@ -8,15 +8,22 @@ __pycache__/
 # Ignore log files
 *.log
 
+# Ignore system files
+.DS.Store
+*.idea
+
 # Ignore other common files
 *.bak
 *.swp
 *.tmp
+*.csv
 
 # Ignore Jupyter Notebook checkpoints
 .ipynb_checkpoints/
-
-# Ignore result json file
-*.json
-
 *.conda
+
+# 가상환경
+/.venv/
+
+# AWS
+aws_key.py
