@@ -86,7 +86,7 @@ def generate_recipe(recipe_info_index, user_info, recipe_change_type):
         model="gpt-4o-mini",
         temperature=0.0,
         max_tokens=1000,
-        timeout=10,
+        timeout=20,
         api_key=OPENAI_API_KEY
     )
     logger.info("LLM 초기화 완료.")

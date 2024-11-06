@@ -17,15 +17,13 @@ def transform_recipe():
         logger.error("Content-Type 헤더가 'application/json'이 아닙니다.")
         return jsonify({"error": "Content-Type 헤더가 'application/json'이 아닙니다."}), 400
     
-    # recipe_change_type은 query parameter로 받음
+    # recipe_change_type, recipe_info_index를 query parameter로 받음
     recipe_change_type = request.args.get('recipe_change_type', default=0, type=int)
+    recipe_info_index = request.args.get('recipe_info_index', default=0, type=int)
     
     try:
         # body에서 데이터 추출
         data = request.get_json()
-
-        # recipe_info 데이터 추출
-        recipe_info_index = data.get('recipe_info_index')
         
         # user_info 데이터 추출
         user_info = {
