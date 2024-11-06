@@ -18,7 +18,7 @@ llm = ChatOpenAI(
     model="gpt-4o-mini",
     temperature=0.0,
     max_tokens=1000,
-    timeout=None,
+    timeout=10,
     api_key=OPENAI_API_KEY
 )
 logger.info("LLM 초기화 완료.")
@@ -35,6 +35,7 @@ prompt = ChatPromptTemplate.from_messages([
 logger.info("프롬프트 템플릿 생성 완료.")
 
 chain = prompt | llm | output_parser
+
 logger.info("LLM 레시피 생성중... : 냉장고 파먹기")
 result = chain.invoke({"user_info" : get_user_info(), "recipe_info" : get_recipe_info()})
 logger.info("LLM 레시피 생성 완료 : 냉장고 파먹기")
