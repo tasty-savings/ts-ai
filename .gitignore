@@ -16,7 +16,6 @@ __pycache__/
 *.bak
 *.swp
 *.tmp
-*.csv
 
 # Ignore Jupyter Notebook checkpoints
 .ipynb_checkpoints/

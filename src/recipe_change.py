@@ -17,8 +17,12 @@ def get_recipe_info(recipe_info_index):
     """
         *** recipe_info_index 따라 레시피 정보를 선택합니다. (추후 레시피 DB 추가 시 수정 필요)
         레시피 정보를 가져오는 함수
-        레시피 메뉴명, 재료, 인분, 조리시간, 타입, 만드는 방법, 조리 팁을 포함한 레시피 정보를 반환합니다.
-        return: dict
+        
+        Args:
+            recipe_info_index (int): 레시피 정보 인덱스
+            
+        Returns:
+            dict: 레시피 정보
     """
     df = pd.read_csv('data/result/10000recipe_all.csv')
     recipe_info = {}
