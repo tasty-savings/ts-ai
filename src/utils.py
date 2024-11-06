@@ -17,8 +17,8 @@ def get_recipe_info():
     recipe_info["recipe_type"] = df['type_key'][idx]                # 레시피 타입(밑반찬, 차/음료/술 ...)
     recipe_info["recipe_cooking_order"] = df['cooking_order'][idx]  # 레시피 만드는 방법
     recipe_info["recipe_tips"] = df['tips'][idx]                    # 레시피 조리 팁
-    
-    logger.debug("레시피 정보 읽기 완료: %s", recipe_info)
+
+    logger.info("레시피 정보 읽기 완료: %s", recipe_info)
     return recipe_info
 
 def get_user_info():
@@ -36,7 +36,7 @@ def get_user_info():
     user_info["user_basic_seasoning"] = "식초, 소금, 설탕"      # 유저가 가진 기본 조미료
     user_info["must_use_ingredients"] = "비행기"                  # 반드시 사용해야 하는 식재료
     
-    logger.debug("유저 정보 읽기 완료: %s", user_info)
+    logger.info("유저 정보 읽기 완료: %s", user_info)
     return user_info
 
 def get_system_prompt(prompt_index):
@@ -57,8 +57,9 @@ def get_system_prompt(prompt_index):
     try:
         with open(default_folder_path + prompt_file_path, 'r') as file:
             system_prompt = file.read()
+            logger.info("System Prompt 읽기 완료: %s", system_prompt)
     except FileNotFoundError:
-        print(f"{prompt_file_path}을 찾을 수 없습니다.")
+        logger.error(f"{prompt_file_path}을 찾을 수 없습니다.")
         system_prompt = ""
         
     return system_prompt

@@ -21,6 +21,11 @@ llm = ChatOpenAI(
     timeout=None,
     api_key=OPENAI_API_KEY
 )
+logger.info("LLM 초기화 완료.")
+
+# 출력 파서 초기화
+output_parser = JsonOutputParser()
+logger.info("json 출력 파서 초기화 완료.")
 
 # 프롬프트 템플릿 생성 (1: 냉장고 파먹기, 2: 레시피 단순화, 3: 사용자 영양 맞춤형 레시피)
 prompt = ChatPromptTemplate.from_messages([
@@ -29,10 +34,8 @@ prompt = ChatPromptTemplate.from_messages([
 ])
 logger.info("프롬프트 템플릿 생성 완료.")
 
-# 출력 파서 초기화
-output_parser = JsonOutputParser()
-
 chain = prompt | llm | output_parser
+logger.info("LLM 레시피 생성중... : 냉장고 파먹기")
 result = chain.invoke({"user_info" : get_user_info(), "recipe_info" : get_recipe_info()})
 logger.info("LLM 레시피 생성 완료 : 냉장고 파먹기")
 
