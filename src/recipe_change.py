@@ -24,7 +24,7 @@ def get_recipe_info(recipe_info_index):
         Returns:
             dict: 레시피 정보
     """
-    df = pd.read_csv('data/result/10000recipe_all.csv')
+    df = pd.read_csv('data/result/recipe_analysis_sample.csv')
     recipe_info = {}
     recipe_info["recipe_menu_name"] = df['title'][recipe_info_index]              # 레시피 메뉴명
     recipe_info["recipe_ingredients"] = df['ingredient'][recipe_info_index]       # 레시피 재료
