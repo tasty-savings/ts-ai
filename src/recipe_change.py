@@ -11,7 +11,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 import json
 import pandas as pd
-from logger import logger
+from logger import logger_recipe
 
 def get_recipe_info(recipe_info_index):
     """
@@ -27,36 +27,45 @@ def get_recipe_info(recipe_info_index):
     df = pd.read_csv('data/result/recipe_analysis_sample.csv')
     recipe_info = {}
     recipe_info["recipe_menu_name"] = df['title'][recipe_info_index]              # 레시피 메뉴명
-    recipe_info["recipe_ingredients"] = df['ingredient'][recipe_info_index]       # 레시피 재료
+    recipe_info["recipe_ingredients"] = string_to_list(df['ingredient'][recipe_info_index])       # 레시피 재료
     recipe_info["recipe_serving"] = df['servings'][recipe_info_index]             # 레시피 인분
     recipe_info["recipe_cooking_time"] = df['cooking_time'][recipe_info_index]    # 레시피 조리 시간
     recipe_info["recipe_type"] = df['type_key'][recipe_info_index]                # 레시피 타입(밑반찬, 차/음료/술 ...)
-    recipe_info["recipe_cooking_order"] = df['cooking_order'][recipe_info_index]  # 레시피 만드는 방법
+    recipe_info["recipe_cooking_order"] = string_to_list(df['cooking_order'][recipe_info_index])  # 레시피 만드는 방법
     recipe_info["recipe_tips"] = df['tips'][recipe_info_index]                    # 레시피 조리 팁
 
-    logger.info("레시피 정보 읽기 완료: %s", recipe_info)
+
+    logger_recipe.info(f"{recipe_info_index}번 레시피 정보 검색 : {recipe_info["recipe_menu_name"]}")
     return recipe_info
 
-def get_user_info(data):
+def get_user_info(recipe_change_type, data):
     """
     요청 데이터에서 user_info를 추출하는 함수
     
     Args:
+        recipe_change_type (int): 레시피 변환 기능에서 프롬프트를 바꾸기 위한 인덱스 
+                (0: 기본값, 1: 냉장고 파먹기, 2: 레시피 단순화, 3: 사용자 영양 맞춤형 레시피)
         data (dict): 클라이언트 요청 데이터
         
     Returns:
         dict: 사용자 정보
     """
-    user_info = {
-        "user_allergy_ingredients": data.get('user_allergy_ingredients', []),
-        "user_dislike_ingredients": data.get('user_dislike_ingredients', []),
-        "user_spicy_level": data.get('user_spicy_level'),
-        "user_cooking_level": data.get('user_cooking_level'),
-        "user_owned_ingredients": data.get('user_owned_ingredients', []),
-        "user_basic_seasoning": data.get('user_basic_seasoning', []),
-        "must_use_ingredients": data.get('must_use_ingredients', [])
-    }
-    logger.info("사용자 정보 추출 완료")
+    if recipe_change_type == 1:
+        user_info = {
+            "user_allergy_ingredients": data.get('user_allergy_ingredients', []),
+            "user_dislike_ingredients": data.get('user_dislike_ingredients', []),
+            "user_spicy_level": data.get('user_spicy_level'),
+            "user_cooking_level": data.get('user_cooking_level'),
+            "user_owned_ingredients": data.get('user_owned_ingredients', []),
+            "user_basic_seasoning": data.get('user_basic_seasoning', []),
+            "must_use_ingredients": data.get('must_use_ingredients', [])
+        }
+    elif recipe_change_type == 2:
+        user_info = {
+            "user_allergy_ingredients": data.get('user_allergy_ingredients', []),
+            "user_cooking_level": data.get('user_cooking_level')
+        }
+    logger_recipe.info("사용자 정보 추출 완료 : %s", user_info)
     return user_info
 
 def get_system_prompt(recipe_change_type):
@@ -73,23 +82,20 @@ def get_system_prompt(recipe_change_type):
     """
     default_folder_path = 'src/prompt/'
     if recipe_change_type == 1:
-        prompt_file_path = 'fridge_recipe_transform_system_prompt.txt'
-        logger.info("냉장고 파먹기 프롬프트 선택")
+        prompt_file_path = '1_fridge_recipe_transform_system_prompt.txt'
     elif recipe_change_type == 2:
-        prompt_file_path = 'fridge_recipe_transform_user_prompt.txt'
-        logger.info("레시피 단순화 프롬프트 선택")
+        prompt_file_path = '2_simple_recipe_transform_system_prompt.txt'
     elif recipe_change_type == 3:
         prompt_file_path = 'fridge_recipe_transform_output_prompt.txt'
-        logger.info("사용자 영양 맞춤형 레시피 프롬프트 선택")
     else:
-        logger.error("recipe_change_type이 올바르지 않습니다. 1, 2, 3 중 하나를 입력해주세요.")
+        logger_recipe.error("recipe_change_type이 올바르지 않습니다. 1, 2, 3 중 하나를 입력해주세요.")
 
     try:
         with open(default_folder_path + prompt_file_path, 'r') as file:
             system_prompt = file.read()
-            logger.info("System Prompt 읽기 완료")
+            logger_recipe.info(f"system prompt : {prompt_file_path} 읽기 완료")
     except FileNotFoundError:
-        logger.error(f"{prompt_file_path}을 찾을 수 없습니다.")
+        logger_recipe.error(f"{prompt_file_path}을 찾을 수 없습니다.")
         system_prompt = ""
         
     return system_prompt
@@ -115,36 +121,69 @@ def generate_recipe(recipe_info_index, user_info, recipe_change_type):
         timeout=20,
         api_key=OPENAI_API_KEY
     )
-    logger.info("LLM 초기화 완료.")
+    logger_recipe.info("LLM 초기화 완료.")
 
     # 출력 파서 초기화
     output_parser = JsonOutputParser()
-    logger.info("json 출력 파서 초기화 완료.")
+    logger_recipe.info("json 출력 파서 초기화 완료.")
 
     # 프롬프트 템플릿 생성
     prompt = ChatPromptTemplate.from_messages([
         ("system", get_system_prompt(recipe_change_type)),
         ("user", "- user_info: {user_info}\n\n- recipe_info: {recipe_info}")
     ])
-    logger.info("프롬프트 템플릿 생성 완료.")
-
+    logger_recipe.debug("==========프롬프트==========\n%s",prompt)
+    logger_recipe.info("프롬프트 템플릿 생성 완료.")
+    
     chain = prompt | llm | output_parser
 
     recipe_info = get_recipe_info(recipe_info_index)
     
-    logger.info("LLM 레시피 생성중...")
+    logger_recipe.info("LLM 레시피 생성중...")
     result = chain.invoke({"user_info": user_info, "recipe_info": recipe_info})
-    logger.info("LLM 레시피 생성 완료")
-
+    logger_recipe.info("LLM 레시피 생성 완료")
+    logger_recipe.debug("LLM 레시피 생성 결과 : %s", result)
+    
+    # 결과가 리스트인 경우 첫 번째 항목을 사용, 아닌 경우 그대로 사용
+    recipe_result = result[0] if isinstance(result, list) else result
+    
+    # recipe_ingredients, recipe_cooking_order을 list형으로 형변환
+    recipe_result["recipe_ingredients"] = string_to_list(recipe_result["recipe_ingredients"])
+    recipe_result["recipe_cooking_order"] = string_to_list(recipe_result["recipe_cooking_order"])
+    
     # log로 결과 출력
     pretty_recipe_info_json = json.dumps(recipe_info, indent=4, ensure_ascii=False)
-    logger.debug("==========원래 레시피 정보==========\n%s", pretty_recipe_info_json)
+    logger_recipe.debug("==========원래 레시피 정보==========\n%s", pretty_recipe_info_json)
 
     pretty_user_info_json = json.dumps(user_info, indent=4, ensure_ascii=False)
-    logger.debug("==========유저 정보==========\n%s", pretty_user_info_json)
+    logger_recipe.debug("==========유저 정보==========\n%s", pretty_user_info_json)
 
-    pretty_result_json = json.dumps(result[0], indent=4, ensure_ascii=False)
-    logger.debug("==========LLM 제안 레시피==========\n%s",pretty_result_json)
+    pretty_result_json = json.dumps(recipe_result, indent=4, ensure_ascii=False)
+    logger_recipe.debug("==========LLM 제안 레시피==========\n%s", pretty_result_json)
     
-    return result[0]
+    return recipe_result
 
+def string_to_list(text):
+    """
+    레시피 결과값의 필드 타입을 list로 변환하는 함수
+    
+    Args:
+        result(text): LLM이 생성한 레시피 결과값
+        
+    Returns:
+        list: 타입이 변환된 레시피 결과값(result)
+    """
+    # 문자열이 이미 리스트인 경우 그대로 반환
+    if isinstance(text, list):
+        logger_recipe.info(f"레시피 변환 중... {text}는 List 형이므로 그대로 반환")
+        return text
+    
+    # 문자열을 리스트로 변환
+    result = eval(text)
+    if isinstance(result, list):
+        logger_recipe.info(f"레시피 변환 중... {text}를 List 형으로 변환")
+        return result
+    # 변환 실패시 log로 error를 찍고, 빈 리스트 반환
+    else:
+        logger_recipe.error(f"레시피 변환 중, {text}을 List형으로 바꾸는데 에러 발생. 빈 리스트 반환")
+        return []
