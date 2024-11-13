@@ -8,6 +8,10 @@ __pycache__/
 # Ignore log files
 *.log
 
+# Ignore system files
+.DS.Store
+*.idea
+
 # Ignore other common files
 *.bak
 *.swp
@@ -15,8 +19,14 @@ __pycache__/
 
 # Ignore Jupyter Notebook checkpoints
 .ipynb_checkpoints/
-
-# Ignore result json file
-*.json
-
 *.conda
+
+# 가상환경
+/.venv/
+
+# AWS
+aws_key.py
+
+# 데이터
+recipe_analysis_checkpoint_20241107_091855.csv
+
