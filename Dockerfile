@@ -1,5 +1,5 @@
 # Step 1: 베이스 이미지로 Python 3.9 사용
-FROM python:3.9-slim
+FROM python:3.12.7-slim
 
 # Step 2: 컨테이너 내 작업 디렉토리 설정
 WORKDIR /
