@@ -1,22 +1,16 @@
 import logging
 
-# 로거 설정
-def setup_logger(name, log_file, level=logging.DEBUG):
-    """
-    로거 설정
-        name: 로거 이름
-        log_file: 로그 파일명
-        level: 로그 레벨 (기본값 DEBUG)
-    """
-    handler = logging.FileHandler(log_file, mode='w')
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
+# 공통 핸들러와 포맷터 설정
+file_handler = logging.FileHandler('main_debug.log', mode='w')
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
 
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
-    logger.addHandler(handler)
+# recipe_logger 설정
+logger_recipe = logging.getLogger('recipe_logger')
+logger_recipe.setLevel(logging.DEBUG)
+logger_recipe.addHandler(file_handler)
 
-    return logger
-
-# main logger
-logger = setup_logger('main_logger', 'main_debug.log')
+# main_logger 설정
+logger_main = logging.getLogger('main_logger')
+logger_main.setLevel(logging.DEBUG)
+logger_main.addHandler(file_handler)
