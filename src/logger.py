@@ -14,3 +14,8 @@ logger_recipe.addHandler(file_handler)
 logger_main = logging.getLogger('main_logger')
 logger_main.setLevel(logging.DEBUG)
 logger_main.addHandler(file_handler)
+
+# db_logger 설정
+logger_db = logging.getLogger('db_logger')
+logger_db.setLevel(logging.DEBUG)
+logger_db.addHandler(file_handler)

@@ -13,9 +13,8 @@ def hello():
 @app.route("/ai/recipe", methods=['POST'])
 def transform_recipe():
     recipe_change_type = request.args.get('recipe_change_type', default=0, type=int)
-    recipe_info_index = request.args.get('recipe_info_index', default=0, type=int)
+    recipe_info_index = request.args.get('recipe_info_index', default=0, type=str)
     logger_main.debug(f"recipe_chage_type : {recipe_change_type}, recipe_info_index : {recipe_info_index}")
-
     if not request.is_json:
         logger_main.error("Content-Type 헤더가 'application/json'이 아닙니다.")
         return jsonify({"error": "Content-Type 헤더가 'application/json'이 아닙니다."}), 400
@@ -25,7 +24,6 @@ def transform_recipe():
         logger_main.debug("body 정보 추출 완료 : %s", data)
         user_info = get_user_info(recipe_change_type, data)
         result = generate_recipe(recipe_info_index, user_info, recipe_change_type)
-        
         # dict를 json으로 변환하여 반환
         return jsonify(result), 200
     
