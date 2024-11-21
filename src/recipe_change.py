@@ -16,6 +16,15 @@ from db import MongoDB
 from bson import ObjectId
 
 def get_recipe_data(recipe_info_index):
+    """
+        recipe_info_index 따라 레시피 정보를 가져오는 함수
+        
+        Args:
+            int: 레시피 정보 인덱스
+            
+        Returns:
+            dict: 레시피 정보
+    """
     with MongoDB() as mongo_db:
         try:
             collection_name = "recipe"  # 컬렉션 이름 (필요에 따라 수정)
