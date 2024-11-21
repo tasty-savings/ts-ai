@@ -12,31 +12,28 @@ from langchain_core.output_parsers import JsonOutputParser
 import json
 import pandas as pd
 from logger import logger_recipe
+from db import MongoDB
+from bson import ObjectId
 
-def get_recipe_info(recipe_info_index):
-    """
-        *** recipe_info_index 따라 레시피 정보를 선택합니다. (추후 레시피 DB 추가 시 수정 필요)
-        레시피 정보를 가져오는 함수
-        
-        Args:
-            recipe_info_index (int): 레시피 정보 인덱스
-            
-        Returns:
-            dict: 레시피 정보
-    """
-    df = pd.read_csv('data/result/recipe_analysis_sample.csv')
-    recipe_info = {}
-    recipe_info["recipe_menu_name"] = df['title'][recipe_info_index]              # 레시피 메뉴명
-    recipe_info["recipe_ingredients"] = string_to_list(df['ingredient'][recipe_info_index])       # 레시피 재료
-    recipe_info["recipe_serving"] = df['servings'][recipe_info_index]             # 레시피 인분
-    recipe_info["recipe_cooking_time"] = df['cooking_time'][recipe_info_index]    # 레시피 조리 시간
-    recipe_info["recipe_type"] = df['type_key'][recipe_info_index]                # 레시피 타입(밑반찬, 차/음료/술 ...)
-    recipe_info["recipe_cooking_order"] = string_to_list(df['cooking_order'][recipe_info_index])  # 레시피 만드는 방법
-    recipe_info["recipe_tips"] = df['tips'][recipe_info_index]                    # 레시피 조리 팁
+def get_recipe_data(recipe_info_index):
+    with MongoDB() as mongo_db:
+        try:
+            collection_name = "recipe"  # 컬렉션 이름 (필요에 따라 수정)
+            query = { "_id": ObjectId(recipe_info_index) }
 
+            projection = {"title": 1, "type_key": 1, "method_key":1, "servings" : 1, "cooking_time" : 1, "ingredients" : 1, "cooking_order": 1, "difficulty":1, "tips" : 1}
 
-    logger_recipe.info(f"{recipe_info_index}번 레시피 정보 검색 : {recipe_info["recipe_menu_name"]}")
-    return recipe_info
+            recipe = mongo_db.find_one(collection_name, query, projection)
+            if recipe:
+                # ObjectId를 문자열로 변환
+                recipe['_id'] = str(recipe['_id'])
+                return recipe
+            else:
+                logger_recipe.error(f"{recipe_info_index} ID의 레시피를 찾을 수 없습니다.")
+                return None
+        except Exception as e:
+            logger_recipe.error(f"get_recipe_data() 오류 발생: {e}")
+            return None
 
 def get_user_info(recipe_change_type, data):
     """
@@ -137,8 +134,8 @@ def generate_recipe(recipe_info_index, user_info, recipe_change_type):
     
     chain = prompt | llm | output_parser
 
-    recipe_info = get_recipe_info(recipe_info_index)
-    
+    recipe_info = get_recipe_data(recipe_info_index)
+
     logger_recipe.info("LLM 레시피 생성중...")
     result = chain.invoke({"user_info": user_info, "recipe_info": recipe_info})
     logger_recipe.info("LLM 레시피 생성 완료")
@@ -168,22 +165,56 @@ def string_to_list(text):
     레시피 결과값의 필드 타입을 list로 변환하는 함수
     
     Args:
-        result(text): LLM이 생성한 레시피 결과값
+        text: LLM이 생성한 레시피 결과값
         
     Returns:
-        list: 타입이 변환된 레시피 결과값(result)
+        list: 타입이 변환된 레시피 결과값
     """
-    # 문자열이 이미 리스트인 경우 그대로 반환
+    # None이나 빈 값 체크
+    if not text:
+        logger_recipe.warning("빈 값이 입력되어 빈 리스트를 반환합니다.")
+        return []
+    
+    # 이미 리스트인 경우 그대로 반환
     if isinstance(text, list):
         logger_recipe.info(f"레시피 변환 중... {text}는 List 형이므로 그대로 반환")
         return text
+        
+    # 딕셔너리인 경우 리스트로 감싸서 반환
+    if isinstance(text, dict):
+        logger_recipe.info(f"레시피 변환 중... 딕셔너리를 리스트로 변환")
+        return [text]
     
-    # 문자열을 리스트로 변환
-    result = eval(text)
-    if isinstance(result, list):
-        logger_recipe.info(f"레시피 변환 중... {text}를 List 형으로 변환")
-        return result
-    # 변환 실패시 log로 error를 찍고, 빈 리스트 반환
-    else:
-        logger_recipe.error(f"레시피 변환 중, {text}을 List형으로 바꾸는데 에러 발생. 빈 리스트 반환")
+    try:
+        # 문자열이 아닌 경우 문자열로 변환
+        if not isinstance(text, str):
+            text = str(text)
+            
+        # 문자열의 시작과 끝의 대괄호 확인
+        if not (text.startswith('[') and text.endswith(']')):
+            text = f"[{text}]"
+            
+        # 작은따옴표를 큰따옴표로 변환
+        text = text.replace("'", '"')
+            
+        # JSON 파싱을 통한 리스트 변환
+        result = json.loads(text)
+        if isinstance(result, list):
+            logger_recipe.info("레시피 변환 중... 텍스트를 List 형으로 변환 성공")
+            return result
+        else:
+            logger_recipe.warning("변환된 결과가 리스트가 아닙니다. 입력값을 리스트로 감싸서 반환")
+            return [result]
+            
+    except json.JSONDecodeError as e:
+        logger_recipe.error(f"JSON 파싱 중 에러 발생: {str(e)}")
+        try:
+            result = [item.strip() for item in text.strip('[]').split(',')]
+            logger_recipe.info("쉼표로 구분된 문자열을 리스트로 변환 성공")
+            return result
+        except Exception as e:
+            logger_recipe.error(f"문자열 분리 중 에러 발생: {str(e)}")
+            return []
+    except Exception as e:
+        logger_recipe.error(f"레시피 변환 중 예상치 못한 에러 발생: {str(e)}")
         return []
