@@ -30,7 +30,7 @@ def get_recipe_data(recipe_info_index):
             collection_name = "recipe"  # 컬렉션 이름 (필요에 따라 수정)
             query = { "_id": ObjectId(recipe_info_index) }
 
-            projection = {"title": 1, "type_key": 1, "method_key":1, "servings" : 1, "cooking_time" : 1, "ingredients" : 1, "cooking_order": 1, "difficulty":1, "tips" : 1}
+            projection = {"title": 1, "type_key": 1, "method_key":1, "servings" : 1, "cooking_time" : 1, "ingredients" : 1, "cooking_steps": 1, "difficulty":1, "tips" : 1}
 
             recipe = mongo_db.find_one(collection_name, query, projection)
             if recipe:
