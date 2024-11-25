@@ -1,9 +1,40 @@
 from flask import Flask, request, jsonify
+from typing import Optional
+import threading
 import datetime
+from langchain_huggingface import HuggingFaceEmbeddings
 from recipe_change import generate_recipe, get_user_info
+from recipe_recommend import recommend_recipes
 from logger import logger_main
 
+
+class EmbeddingsManager:
+    _instance: Optional['EmbeddingsManager'] = None
+    _lock = threading.Lock()
+    _embeddings: Optional[HuggingFaceEmbeddings] = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def get_embeddings(self) -> HuggingFaceEmbeddings:
+        if self._embeddings is None:
+            with self._lock:
+                if self._embeddings is None:
+                    self._embeddings = HuggingFaceEmbeddings(
+                        model_name="all-MiniLM-L6-v2"
+                    )
+        return self._embeddings
+
+
 app = Flask(__name__)
+embeddings_manager = EmbeddingsManager()
+
+def get_embeddings():
+    return embeddings_manager.get_embeddings()
 
 @app.route("/ai/health-check")
 def hello():
@@ -32,7 +63,20 @@ def transform_recipe():
     except Exception as e:
         logger_main.error(f"에러 발생: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
+    
+@app.route("/ai/recommend", methods=['POST'])
+def recommend_recipe():
+    try:
+        data = request.get_json()
+        logger_main.debug("body 정보 추출 완료 : %s", data)
+        result = recommend_recipes(data.get('search_types', []), get_embeddings())
+        
+        return jsonify(result), 200
+    
+    except Exception as e:
+        logger_main.error(f"에러 발생: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+    
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port="5555", debug=True)
 
