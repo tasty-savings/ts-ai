@@ -154,17 +154,18 @@ def generate_recipe(recipe_info_index, user_info, recipe_change_type):
 
     # 프롬프트 템플릿 생성
     langfuse = Langfuse()
-    
-    system_prompt = get_system_prompt(recipe_change_type)
-    prompt = PromptTemplate(
-        input_variables=["user_info", "recipe_info"],
-        template=f"""
-        {system_prompt}
+    langfuse_prompt = langfuse.get_prompt("fridge_recipe_transform")
+    prompt = PromptTemplate.from_template(langfuse_prompt.get_langchain_prompt(user_info=user_info, recipe_info=recipe_info))
+    # system_prompt = get_system_prompt(recipe_change_type)
+    # prompt = PromptTemplate(
+    #     input_variables=["user_info", "recipe_info"],
+    #     template=f"""
+    #     {system_prompt}
         
-        - user_info: {{user_info}}
-        - recipe_info: {{recipe_info}}
-        """
-    )
+    #     - user_info: {{user_info}}
+    #     - recipe_info: {{recipe_info}}
+    #     """
+    # )
     logger_recipe.debug("==========프롬프트==========\n%s",prompt)
     logger_recipe.info("프롬프트 템플릿 생성 완료.")
     
