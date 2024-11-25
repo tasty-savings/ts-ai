@@ -13,3 +13,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # MongoDB 설정
 MONGO_DB_URI = os.getenv("MONGO_DB_URI")
 MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")
+
+# langfuse 설정
+LANGFUSE_PUBLIC_KEY = os.getenv("LANGFUSE_PUBLIC_KEY")
+LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY")

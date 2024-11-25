@@ -5,7 +5,7 @@ import sys
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
-from config import OPENAI_API_KEY
+from config import OPENAI_API_KEY, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
@@ -14,6 +14,21 @@ import pandas as pd
 from logger import logger_recipe
 from db import MongoDB
 from bson import ObjectId
+from langfuse.callback import CallbackHandler
+
+def langfuse_tracking():
+    """
+        langchain 콜백 시스템을 사용한 langchain 실행 추적
+
+        Returns:
+            CallbackHandler: LangFuse의 실행 추적을 위한 CallbackHandler 객체.
+    """
+    langfuse_handler = CallbackHandler(
+        public_key=LANGFUSE_PUBLIC_KEY,
+        secret_key=LANGFUSE_SECRET_KEY,
+        host="https://us.cloud.langfuse.com"
+    )
+    return langfuse_handler
 
 def get_recipe_data(recipe_info_index):
     """
@@ -119,6 +134,9 @@ def generate_recipe(recipe_info_index, user_info, recipe_change_type):
     Returns:
         dict: 생성된 레시피 정보
     """
+    # langchain 콜백 시스템을 사용한 langchain 실행 추적.
+    langfuse_handler = langfuse_tracking()
+    
     # 모델 초기화
     llm = ChatOpenAI(
         model="gpt-4o-mini",
@@ -146,7 +164,7 @@ def generate_recipe(recipe_info_index, user_info, recipe_change_type):
     recipe_info = get_recipe_data(recipe_info_index)
 
     logger_recipe.info("LLM 레시피 생성중...")
-    result = chain.invoke({"user_info": user_info, "recipe_info": recipe_info})
+    result = chain.invoke({"user_info": user_info, "recipe_info": recipe_info}, config={"callbacks": [langfuse_handler]})
     logger_recipe.info("LLM 레시피 생성 완료")
     logger_recipe.debug("LLM 레시피 생성 결과 : %s", result)
     
