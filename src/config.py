@@ -11,7 +11,7 @@ RECIPE_API = os.getenv("RECIPE_API")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # MongoDB 설정
-MONGO_DB_URI = os.getenv("MONGO_DB_URI")
+MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")
 
 # langfuse 설정

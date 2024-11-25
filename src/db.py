@@ -1,5 +1,5 @@
 from pymongo import MongoClient
-from config import MONGO_DB_URI, MONGO_DB_NAME
+from config import MONGO_DB_URL, MONGO_DB_NAME
 from logger import logger_db
 import time
 from contextlib import contextmanager
@@ -12,8 +12,8 @@ class MongoDB:
     def _connect_to_db(self):
         """MongoDB 연결 초기화"""
         try:
-            logger_db.info(f"MongoDB 연결 시도 중... (URI: {MONGO_DB_URI})")
-            self.client = MongoClient(MONGO_DB_URI)
+            logger_db.info(f"MongoDB 연결 시도 중... (URI: {MONGO_DB_URL})")
+            self.client = MongoClient(MONGO_DB_URL)
             self.db = self.client[MONGO_DB_NAME]
             # 연결 테스트
             self.client.server_info()
