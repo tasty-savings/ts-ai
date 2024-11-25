@@ -7,7 +7,8 @@ sys.path.insert(0, project_root)
 
 from config import OPENAI_API_KEY, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
+from langfuse import Langfuse
+from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 import json
 import pandas as pd
@@ -152,10 +153,18 @@ def generate_recipe(recipe_info_index, user_info, recipe_change_type):
     logger_recipe.info("json 출력 파서 초기화 완료.")
 
     # 프롬프트 템플릿 생성
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", get_system_prompt(recipe_change_type)),
-        ("user", "- user_info: {user_info}\n\n- recipe_info: {recipe_info}")
-    ])
+    langfuse = Langfuse()
+    
+    system_prompt = get_system_prompt(recipe_change_type)
+    prompt = PromptTemplate(
+        input_variables=["user_info", "recipe_info"],
+        template=f"""
+        {system_prompt}
+        
+        - user_info: {{user_info}}
+        - recipe_info: {{recipe_info}}
+        """
+    )
     logger_recipe.debug("==========프롬프트==========\n%s",prompt)
     logger_recipe.info("프롬프트 템플릿 생성 완료.")
     
