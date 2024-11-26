@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 import datetime
-from recipe_change import generate_recipe, get_user_info
+from recipe_change import generate_recipe, get_user_info, get_recipe_data
 from logger import logger_main
 
 app = Flask(__name__)
@@ -23,7 +23,8 @@ def transform_recipe():
         data = request.get_json()
         logger_main.debug("body 정보 추출 완료 : %s", data)
         user_info = get_user_info(recipe_change_type, data)
-        result = generate_recipe(recipe_info_index, user_info, recipe_change_type)
+        recipe_info = get_recipe_data(recipe_info_index)
+        result = generate_recipe(recipe_info, user_info, recipe_change_type)
         # dict를 json으로 변환하여 반환
         return jsonify(result), 200
     
