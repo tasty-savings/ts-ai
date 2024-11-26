@@ -8,6 +8,7 @@ from logger import logger_recipe
 from db import MongoDB
 from bson import ObjectId
 from langfuse.callback import CallbackHandler
+from pydantic import BaseModel, Field
 
 def langfuse_tracking():
     """
@@ -85,7 +86,7 @@ def get_user_info(recipe_change_type, data):
 def get_system_prompt(recipe_change_type):
     """
         LLM에 넣을 시스템 프롬프트를 가져오는 함수
-        각 프롬프트 파일은 src/prompt 폴더에 저장되어 있습니다.
+        각 프롬프트 파일은 langfuse에 저장되어 있고, tracking 가능
         
         Args:
             recipe_change_type (int): 레시피 변환 기능에서 프롬프트를 바꾸기 위한 인덱스 
@@ -110,17 +111,30 @@ def get_system_prompt(recipe_change_type):
         langfuse_text_prompt.get_langchain_prompt(),
         metadata={"langfuse_prompt": langfuse_text_prompt},
     )
-    logger_recipe.info("프롬프트 템플릿 생성 완료.")
 
+    logger_recipe.info("프롬프트 템플릿 생성 완료.")
     return langchain_text_prompt
+
+# 원하는 데이터 구조를 정의합니다.
+class ChangeRecipe(BaseModel):
+    main_changes_from_original_recipe: str = Field(description="기본 레시피와 새로운 레시피 사이의 주요 변경점")
+    reason_for_changes: str = Field(description="레시피가 바뀐 이유")
+    recipe_cooking_order: list = Field(description="조리 순서")
+    recipe_cooking_time: str = Field(description="조리 시간")
+    recipe_difficulty: str = Field(description="조리 난이도")
+    recipe_ingredients: list = Field(description="조리에 사용되는 재료(양)")
+    recipe_menu_name: str = Field(description="새로운 레시피의 이름")
+    recipe_tips: str = Field(description="조리팁")
+    recipe_type: str = Field(description="조리 타입")
+    unchanged_parts_and_reasons: str = Field(description="기존 레시피에서 바뀌지 않은 부분과 바뀌지 않은 이유")
+
 
 def generate_recipe(recipe_info, user_info, recipe_change_type):
     """
     레시피를 생성하는 함수
     
     Args:
-        recipe_info_index (int): 레시피 정보 인덱스
-        user_info (dict): 사용자 정보
+        recipe_info, user_info (dict): 레시피 정보, 사용자 정보
         recipe_change_type (int): 레시피 변환 기능에서 프롬프트를 바꾸기 위한 인덱스 
             (0: 기본값, 1: 냉장고 파먹기, 2: 레시피 단순화, 3: 사용자 영양 맞춤형 레시피)
     
@@ -141,79 +155,19 @@ def generate_recipe(recipe_info, user_info, recipe_change_type):
     logger_recipe.info("LLM 초기화 완료.")
 
     # 출력 파서 초기화
-    output_parser = JsonOutputParser()
+    output_parser = JsonOutputParser(pydantic_object=ChangeRecipe)
     logger_recipe.info("json 출력 파서 초기화 완료.")
 
-    # 프롬프트 템플릿 생성 및 chain 실행
+    # 프롬프트 템플릿에 출력파서 지정
     prompt = get_system_prompt(recipe_change_type)
+    prompt = prompt.partial(format_instructions=output_parser.get_format_instructions())
+
     chain = prompt | llm | output_parser
+    logger_recipe.info("LLM 레시피 생성 중...")
     result = chain.invoke({"user_info": user_info, "recipe_info": recipe_info}, config={"callbacks": [langfuse_handler]})
     logger_recipe.info("LLM 레시피 생성 완료")
     
     # 결과가 리스트인 경우 첫 번째 항목을 사용, 아닌 경우 그대로 사용
     recipe_result = result[0] if isinstance(result, list) else result
     
-    # recipe_ingredients, recipe_cooking_order을 list형으로 형변환
-    recipe_result["recipe_ingredients"] = string_to_list(recipe_result["recipe_ingredients"])
-    recipe_result["recipe_cooking_order"] = string_to_list(recipe_result["recipe_cooking_order"])
-    
     return recipe_result
-
-def string_to_list(text):
-    """
-    레시피 결과값의 필드 타입을 list로 변환하는 함수
-    
-    Args:
-        text: LLM이 생성한 레시피 결과값
-        
-    Returns:
-        list: 타입이 변환된 레시피 결과값
-    """
-    # None이나 빈 값 체크
-    if not text:
-        logger_recipe.warning("빈 값이 입력되어 빈 리스트를 반환합니다.")
-        return []
-    
-    # 이미 리스트인 경우 그대로 반환
-    if isinstance(text, list):
-        logger_recipe.info(f"레시피 변환 중... {text}는 List 형이므로 그대로 반환")
-        return text
-        
-    # 딕셔너리인 경우 리스트로 감싸서 반환
-    if isinstance(text, dict):
-        logger_recipe.info(f"레시피 변환 중... 딕셔너리를 리스트로 변환")
-        return [text]
-    
-    try:
-        # 문자열이 아닌 경우 문자열로 변환
-        if not isinstance(text, str):
-            text = str(text)
-            
-        # 문자열의 시작과 끝의 대괄호 확인
-        if not (text.startswith('[') and text.endswith(']')):
-            text = f"[{text}]"
-            
-        # 작은따옴표를 큰따옴표로 변환
-        text = text.replace("'", '"')
-            
-        # JSON 파싱을 통한 리스트 변환
-        result = json.loads(text)
-        if isinstance(result, list):
-            logger_recipe.info("레시피 변환 중... 텍스트를 List 형으로 변환 성공")
-            return result
-        else:
-            logger_recipe.warning("변환된 결과가 리스트가 아닙니다. 입력값을 리스트로 감싸서 반환")
-            return [result]
-            
-    except json.JSONDecodeError as e:
-        logger_recipe.error(f"JSON 파싱 중 에러 발생: {str(e)}")
-        try:
-            result = [item.strip() for item in text.strip('[]').split(',')]
-            logger_recipe.info("쉼표로 구분된 문자열을 리스트로 변환 성공")
-            return result
-        except Exception as e:
-            logger_recipe.error(f"문자열 분리 중 에러 발생: {str(e)}")
-            return []
-    except Exception as e:
-        logger_recipe.error(f"레시피 변환 중 예상치 못한 에러 발생: {str(e)}")
-        return []
