@@ -1,7 +1,7 @@
 import logging
 
 # 공통 핸들러와 포맷터 설정
-file_handler = logging.FileHandler('main_debug.log', mode='w')
+file_handler = logging.FileHandler('main_debug.log', mode='a')
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 file_handler.setFormatter(formatter)
 
