@@ -4,8 +4,9 @@ import threading
 import datetime
 from langchain_huggingface import HuggingFaceEmbeddings
 from recipe_change import generate_recipe, get_user_info, get_recipe_data
-from recipe_recommend import recommend_recipes
+from recipe_recommend import SearchConfig
 from logger import logger_main
+from src.recipe_recommend import RecipeSearchSingleton
 
 
 class EmbeddingsManager:
@@ -31,10 +32,14 @@ class EmbeddingsManager:
 
 
 app = Flask(__name__)
+config = SearchConfig(
+    batch_size=50,
+    chunk_size=500,
+    cache_size=1000,
+    max_workers=4
+)
 embeddings_manager = EmbeddingsManager()
-
-def get_embeddings():
-    return embeddings_manager.get_embeddings()
+recipe_engine = RecipeSearchSingleton.initialize(embeddings_manager.get_embeddings(), config)
 
 @app.route("/ai/health-check")
 def hello():
@@ -62,13 +67,15 @@ def transform_recipe():
     except Exception as e:
         logger_main.error(f"에러 발생: {str(e)}")
         return jsonify({"error": str(e)}), 500
-    
+
 @app.route("/ai/recommend", methods=['POST'])
 def recommend_recipe():
     try:
         data = request.get_json()
         logger_main.debug("body 정보 추출 완료 : %s", data)
-        result = recommend_recipes(data.get('search_types', []), get_embeddings())
+        query_key = ','.join(data.get("search_types", []))
+
+        result = recipe_engine.search_recipes(query_key)
         
         return jsonify(result), 200
     
