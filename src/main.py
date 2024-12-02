@@ -4,9 +4,8 @@ import threading
 import datetime
 from langchain_huggingface import HuggingFaceEmbeddings
 from recipe_change import generate_recipe, get_user_info, get_recipe_data
-from recipe_recommend import SearchConfig
+from recipe_recommend import SearchConfig, RecipeSearchSingleton
 from logger import logger_main
-from src.recipe_recommend import RecipeSearchSingleton
 
 
 class EmbeddingsManager:
