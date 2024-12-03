@@ -83,39 +83,29 @@ def get_user_info(recipe_change_type, data):
     logger_recipe.info("사용자 정보 추출 완료 : %s", user_info)
     return user_info
 
-def get_system_prompt(recipe_change_type):
+def get_system_prompt(langfuse_prompt_name):
     """
         LLM에 넣을 시스템 프롬프트를 가져오는 함수
         각 프롬프트 파일은 langfuse에 저장되어 있고, tracking 가능
         
         Args:
-            recipe_change_type (int): 레시피 변환 기능에서 프롬프트를 바꾸기 위한 인덱스 
-                (0: 기본값, 1: 냉장고 파먹기, 2: 레시피 단순화, 3: 사용자 영양 맞춤형 레시피)
+            langfuse_prompt_name (str): langfuse에 저장된 prompt file name
         
         Returns:
             str: 시스템 프롬프트
     """
     langfuse = Langfuse()
 
-    if recipe_change_type==1:
-        langfuse_text_prompt = langfuse.get_prompt("fridge_recipe_transform")
-    elif recipe_change_type==2:
-        langfuse_text_prompt = langfuse.get_prompt("simple_recipe_transform")
-    elif recipe_change_type==3:
-        langfuse_text_prompt = langfuse.get_prompt("fridge_recipe_transform")
-    else:
-        logger_recipe.error("Langfuse Prompt Get Error")
-        raise ValueError(f"지원하지 않는 recipe_change_type: {recipe_change_type}")
-
+    langfuse_text_prompt = langfuse.get_prompt(langfuse_prompt_name)
+    
     langchain_text_prompt = PromptTemplate.from_template(
         langfuse_text_prompt.get_langchain_prompt(),
         metadata={"langfuse_prompt": langfuse_text_prompt},
     )
 
-    logger_recipe.info("프롬프트 템플릿 생성 완료.")
+    logger_recipe.info("langfuse prompt template 생성 완료")
     return langchain_text_prompt
 
-# 원하는 데이터 구조를 정의합니다.
 class ChangeRecipe(BaseModel):
     main_changes_from_original_recipe: str = Field(description="기본 레시피와 새로운 레시피 사이의 주요 변경점")
     reason_for_changes: str = Field(description="레시피가 바뀐 이유")
@@ -127,7 +117,6 @@ class ChangeRecipe(BaseModel):
     recipe_tips: str = Field(description="조리팁")
     recipe_type: str = Field(description="조리 타입")
     unchanged_parts_and_reasons: str = Field(description="기존 레시피에서 바뀌지 않은 부분과 바뀌지 않은 이유")
-
 
 def generate_recipe(recipe_info, user_info, recipe_change_type):
     """
@@ -156,10 +145,20 @@ def generate_recipe(recipe_info, user_info, recipe_change_type):
     output_parser = JsonOutputParser(pydantic_object=ChangeRecipe)
     logger_recipe.info("json 출력 파서 초기화 완료.")
 
-    prompt = get_system_prompt(recipe_change_type)
-    prompt = prompt.partial(format_instructions=output_parser.get_format_instructions())
+    if recipe_change_type==1:
+        langfuse_prompt_name = "fridge_recipe_transform"
+    elif recipe_change_type==2:
+        langfuse_prompt_name = "simple_recipe_transform"
+    elif recipe_change_type==3:
+        langfuse_prompt_name = "fridge_recipe_transform"
+    else:
+        logger_recipe.error("Langfuse Prompt Get Error")
+        raise ValueError(f"지원하지 않는 recipe_change_type: {recipe_change_type}")
+    
+    feature_prompt = get_system_prompt(langfuse_prompt_name)
+    feature_prompt = feature_prompt.partial(format_instructions=output_parser.get_format_instructions())
 
-    chain = prompt | llm | output_parser
+    chain = feature_prompt | llm | output_parser
     logger_recipe.info("LLM 레시피 생성 중...")
     result = chain.invoke({"user_info": user_info, "recipe_info": recipe_info}, config={"callbacks": [langfuse_handler]})
     logger_recipe.info("LLM 레시피 생성 완료")
