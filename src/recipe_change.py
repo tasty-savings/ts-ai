@@ -144,7 +144,6 @@ def generate_recipe(recipe_info, user_info, recipe_change_type):
     # langchain 콜백 시스템을 사용한 langchain 실행 추적.
     langfuse_handler = langfuse_tracking()
     
-    # 모델 초기화
     llm = ChatOpenAI(
         model="gpt-4o-mini",
         temperature=0.0,
@@ -154,11 +153,9 @@ def generate_recipe(recipe_info, user_info, recipe_change_type):
     )
     logger_recipe.info("LLM 초기화 완료.")
 
-    # 출력 파서 초기화
     output_parser = JsonOutputParser(pydantic_object=ChangeRecipe)
     logger_recipe.info("json 출력 파서 초기화 완료.")
 
-    # 프롬프트 템플릿에 출력파서 지정
     prompt = get_system_prompt(recipe_change_type)
     prompt = prompt.partial(format_instructions=output_parser.get_format_instructions())
 
@@ -167,7 +164,4 @@ def generate_recipe(recipe_info, user_info, recipe_change_type):
     result = chain.invoke({"user_info": user_info, "recipe_info": recipe_info}, config={"callbacks": [langfuse_handler]})
     logger_recipe.info("LLM 레시피 생성 완료")
     
-    # 결과가 리스트인 경우 첫 번째 항목을 사용, 아닌 경우 그대로 사용
-    recipe_result = result[0] if isinstance(result, list) else result
-    
-    return recipe_result
+    return result
