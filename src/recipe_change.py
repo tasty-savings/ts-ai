@@ -2,7 +2,7 @@ from config import OPENAI_API_KEY, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LAN
 from langchain_openai import ChatOpenAI
 from langfuse import Langfuse
 from langchain_core.prompts import PromptTemplate
-from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 import json
 from logger import logger_recipe
 from db import MongoDB
@@ -106,6 +106,18 @@ def get_system_prompt(langfuse_prompt_name):
     logger_recipe.info("langfuse prompt template 생성 완료")
     return langchain_text_prompt
 
+def choose_feature(recipe_change_type):
+    if recipe_change_type==1:
+        langfuse_prompt_name = "fridge_recipe_transform"
+    elif recipe_change_type==2:
+        langfuse_prompt_name = "simple_recipe_transform"
+    elif recipe_change_type==3:
+        langfuse_prompt_name = "fridge_recipe_transform"
+    else:
+        logger_recipe.error("Langfuse Prompt Get Error")
+        raise ValueError(f"지원하지 않는 recipe_change_type: {recipe_change_type}")
+    return langfuse_prompt_name
+
 class ChangeRecipe(BaseModel):
     main_changes_from_original_recipe: str = Field(description="기본 레시피와 새로운 레시피 사이의 주요 변경점")
     reason_for_changes: str = Field(description="레시피가 바뀐 이유")
@@ -145,22 +157,37 @@ def generate_recipe(recipe_info, user_info, recipe_change_type):
     output_parser = JsonOutputParser(pydantic_object=ChangeRecipe)
     logger_recipe.info("json 출력 파서 초기화 완료.")
 
-    if recipe_change_type==1:
-        langfuse_prompt_name = "fridge_recipe_transform"
-    elif recipe_change_type==2:
-        langfuse_prompt_name = "simple_recipe_transform"
-    elif recipe_change_type==3:
-        langfuse_prompt_name = "fridge_recipe_transform"
-    else:
-        logger_recipe.error("Langfuse Prompt Get Error")
-        raise ValueError(f"지원하지 않는 recipe_change_type: {recipe_change_type}")
+    # 레시피의 핵심 재료와 맛 Prompt
+    find_keyIngredients_tasty_prompt = get_system_prompt("find_keyIngredients_tasty")
     
-    feature_prompt = get_system_prompt(langfuse_prompt_name)
-    feature_prompt = feature_prompt.partial(format_instructions=output_parser.get_format_instructions())
+    # 기능 Prompt
+    feature_prompt = get_system_prompt(choose_feature(recipe_change_type))
+    feature_prompt = feature_prompt.partial(format_instructions=output_parser.get_format_instructions(), user_info=user_info, recipe_info=recipe_info)
 
-    chain = feature_prompt | llm | output_parser
+    # 평가 Prompt
+    feature_eval_prompt = get_system_prompt("feature_eval")
+    feature_eval_prompt = feature_eval_prompt.partial(format_instructions=output_parser.get_format_instructions(), user_info=user_info, recipe_info=recipe_info)
+
+    # Chain (find_keyIngredients_tasty_prompt_chain -> feature_chain -> feature_eval_chain)
+    find_keyIngredients_tasty_prompt_chain = find_keyIngredients_tasty_prompt | llm | StrOutputParser()
+
+    feature_chain = (
+        {"recipe_keyIngredients_tasty":find_keyIngredients_tasty_prompt_chain}
+        | feature_prompt 
+        | llm 
+        | output_parser
+    )
+
+    # feature_eval_chain = (
+    #     {"llm_generate_recipe":feature_chain}
+    #     | feature_eval_prompt 
+    #     | llm 
+    #     | output_parser
+    # )
+    
     logger_recipe.info("LLM 레시피 생성 중...")
-    result = chain.invoke({"user_info": user_info, "recipe_info": recipe_info}, config={"callbacks": [langfuse_handler]})
+    feature_eval_result = feature_chain.invoke(input={"user_info":user_info, "recipe_info":recipe_info}, config={"callbacks": [langfuse_handler]})
     logger_recipe.info("LLM 레시피 생성 완료")
     
-    return result
+    return feature_eval_result
+
