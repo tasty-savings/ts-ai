@@ -75,7 +75,7 @@ def get_user_info(recipe_change_type, data):
             "user_basic_seasoning": data.get('user_basic_seasoning', []),
             "must_use_ingredients": data.get('must_use_ingredients', [])
         }
-    elif recipe_change_type == 2:
+    elif recipe_change_type == 2 or recipe_change_type == 3:
         user_info = {
             "user_allergy_ingredients": data.get('user_allergy_ingredients', []),
             "user_cooking_level": data.get('user_cooking_level')
@@ -112,13 +112,28 @@ def choose_feature(recipe_change_type):
     elif recipe_change_type==2:
         langfuse_prompt_name = "simple_recipe_transform"
     elif recipe_change_type==3:
-        langfuse_prompt_name = "fridge_recipe_transform"
+        langfuse_prompt_name = "balance_nutrition"
     else:
         logger_recipe.error("Langfuse Prompt Get Error")
         raise ValueError(f"지원하지 않는 recipe_change_type: {recipe_change_type}")
     return langfuse_prompt_name
 
 class ChangeRecipe(BaseModel):
+    main_changes_from_original_recipe: str = Field(description="기본 레시피와 새로운 레시피 사이의 주요 변경점")
+    reason_for_changes: str = Field(description="레시피가 바뀐 이유")
+    recipe_cooking_order: list = Field(description="조리 순서")
+    recipe_cooking_time: str = Field(description="조리 시간")
+    recipe_difficulty: str = Field(description="조리 난이도")
+    recipe_ingredients: list = Field(description="조리에 사용되는 재료(양)")
+    recipe_menu_name: str = Field(description="새로운 레시피의 이름")
+    recipe_tips: str = Field(description="조리팁")
+    recipe_type: str = Field(description="조리 타입")
+    unchanged_parts_and_reasons: str = Field(description="기존 레시피에서 바뀌지 않은 부분과 바뀌지 않은 이유")
+
+class RecipeChangeBalanceNutrition(BaseModel):
+    original_recipe_food_group_composition: str = Field(description="기본 레시피의 식품군 구성")
+    user_meal_food_group_requirements: str = Field(description="사용자가 끼니당 필요로 하는 식품군 구성")
+    new_recipe_food_group_composition: str = Field(description="새로운 레시피의 식품군 구성")
     main_changes_from_original_recipe: str = Field(description="기본 레시피와 새로운 레시피 사이의 주요 변경점")
     reason_for_changes: str = Field(description="레시피가 바뀐 이유")
     recipe_cooking_order: list = Field(description="조리 순서")
@@ -155,6 +170,7 @@ def generate_recipe(recipe_info, user_info, recipe_change_type):
     logger_recipe.info("LLM 초기화 완료.")
 
     output_parser = JsonOutputParser(pydantic_object=ChangeRecipe)
+    output_parser_3 = JsonOutputParser(pydantic_object=RecipeChangeBalanceNutrition)
     logger_recipe.info("json 출력 파서 초기화 완료.")
 
     # 레시피의 핵심 재료와 맛 Prompt
@@ -162,21 +178,39 @@ def generate_recipe(recipe_info, user_info, recipe_change_type):
     
     # 기능 Prompt
     feature_prompt = get_system_prompt(choose_feature(recipe_change_type))
-    feature_prompt = feature_prompt.partial(format_instructions=output_parser.get_format_instructions(), user_info=user_info, recipe_info=recipe_info)
+    if recipe_change_type == 3:
+        feature_prompt = feature_prompt.partial(format_instructions=output_parser_3.get_format_instructions(), user_info=user_info, recipe_info=recipe_info)
+    else:
+        feature_prompt = feature_prompt.partial(format_instructions=output_parser.get_format_instructions(), user_info=user_info, recipe_info=recipe_info)
 
     # 평가 Prompt
     feature_eval_prompt = get_system_prompt("feature_eval")
     feature_eval_prompt = feature_eval_prompt.partial(format_instructions=output_parser.get_format_instructions(), user_info=user_info, recipe_info=recipe_info)
 
+    if recipe_change_type==3:
+        # 식품군 비율 생성 Prompt
+        generate_food_group_ratio_prompt = get_system_prompt("generate_food_group_ratio")
+        generate_food_group_ratio_prompt_chain = generate_food_group_ratio_prompt | llm | StrOutputParser()
+        
+
     # Chain (find_keyIngredients_tasty_prompt_chain -> feature_chain -> feature_eval_chain)
     find_keyIngredients_tasty_prompt_chain = find_keyIngredients_tasty_prompt | llm | StrOutputParser()
 
-    feature_chain = (
-        {"recipe_keyIngredients_tasty":find_keyIngredients_tasty_prompt_chain}
+    if recipe_change_type==3:
+        feature_chain = (
+        {"recipe_keyIngredients_tasty":find_keyIngredients_tasty_prompt_chain, "original_recipe_food_group_composition":generate_food_group_ratio_prompt_chain}
         | feature_prompt 
         | llm 
-        | output_parser
+        | output_parser_3
     )
+    else:
+        feature_chain = (
+            {"recipe_keyIngredients_tasty":find_keyIngredients_tasty_prompt_chain}
+            | feature_prompt 
+            | llm 
+            | output_parser
+        )
+    
 
     # feature_eval_chain = (
     #     {"llm_generate_recipe":feature_chain}
