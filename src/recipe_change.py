@@ -2,7 +2,7 @@ from config import OPENAI_API_KEY, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LAN
 from langchain_openai import ChatOpenAI
 from langfuse import Langfuse
 from langchain_core.prompts import PromptTemplate
-from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 import json
 from logger import logger_recipe
 from db import MongoDB
@@ -75,7 +75,7 @@ def get_user_info(recipe_change_type, data):
             "user_basic_seasoning": data.get('user_basic_seasoning', []),
             "must_use_ingredients": data.get('must_use_ingredients', [])
         }
-    elif recipe_change_type == 2:
+    elif recipe_change_type == 2 or recipe_change_type == 3:
         user_info = {
             "user_allergy_ingredients": data.get('user_allergy_ingredients', []),
             "user_cooking_level": data.get('user_cooking_level')
@@ -83,39 +83,41 @@ def get_user_info(recipe_change_type, data):
     logger_recipe.info("사용자 정보 추출 완료 : %s", user_info)
     return user_info
 
-def get_system_prompt(recipe_change_type):
+def get_system_prompt(langfuse_prompt_name):
     """
         LLM에 넣을 시스템 프롬프트를 가져오는 함수
         각 프롬프트 파일은 langfuse에 저장되어 있고, tracking 가능
         
         Args:
-            recipe_change_type (int): 레시피 변환 기능에서 프롬프트를 바꾸기 위한 인덱스 
-                (0: 기본값, 1: 냉장고 파먹기, 2: 레시피 단순화, 3: 사용자 영양 맞춤형 레시피)
+            langfuse_prompt_name (str): langfuse에 저장된 prompt file name
         
         Returns:
             str: 시스템 프롬프트
     """
     langfuse = Langfuse()
 
-    if recipe_change_type==1:
-        langfuse_text_prompt = langfuse.get_prompt("fridge_recipe_transform")
-    elif recipe_change_type==2:
-        langfuse_text_prompt = langfuse.get_prompt("simple_recipe_transform")
-    elif recipe_change_type==3:
-        langfuse_text_prompt = langfuse.get_prompt("fridge_recipe_transform")
-    else:
-        logger_recipe.error("Langfuse Prompt Get Error")
-        raise ValueError(f"지원하지 않는 recipe_change_type: {recipe_change_type}")
-
+    langfuse_text_prompt = langfuse.get_prompt(langfuse_prompt_name)
+    
     langchain_text_prompt = PromptTemplate.from_template(
         langfuse_text_prompt.get_langchain_prompt(),
         metadata={"langfuse_prompt": langfuse_text_prompt},
     )
 
-    logger_recipe.info("프롬프트 템플릿 생성 완료.")
+    logger_recipe.info("langfuse prompt template 생성 완료")
     return langchain_text_prompt
 
-# 원하는 데이터 구조를 정의합니다.
+def choose_feature(recipe_change_type):
+    if recipe_change_type==1:
+        langfuse_prompt_name = "fridge_recipe_transform"
+    elif recipe_change_type==2:
+        langfuse_prompt_name = "simple_recipe_transform"
+    elif recipe_change_type==3:
+        langfuse_prompt_name = "balance_nutrition"
+    else:
+        logger_recipe.error("Langfuse Prompt Get Error")
+        raise ValueError(f"지원하지 않는 recipe_change_type: {recipe_change_type}")
+    return langfuse_prompt_name
+
 class ChangeRecipe(BaseModel):
     main_changes_from_original_recipe: str = Field(description="기본 레시피와 새로운 레시피 사이의 주요 변경점")
     reason_for_changes: str = Field(description="레시피가 바뀐 이유")
@@ -128,6 +130,20 @@ class ChangeRecipe(BaseModel):
     recipe_type: str = Field(description="조리 타입")
     unchanged_parts_and_reasons: str = Field(description="기존 레시피에서 바뀌지 않은 부분과 바뀌지 않은 이유")
 
+class RecipeChangeBalanceNutrition(BaseModel):
+    original_recipe_food_group_composition: str = Field(description="기본 레시피의 식품군 구성")
+    user_meal_food_group_requirements: str = Field(description="사용자가 끼니당 필요로 하는 식품군 구성")
+    new_recipe_food_group_composition: str = Field(description="새로운 레시피의 식품군 구성")
+    main_changes_from_original_recipe: str = Field(description="기본 레시피와 새로운 레시피 사이의 주요 변경점")
+    reason_for_changes: str = Field(description="레시피가 바뀐 이유")
+    recipe_cooking_order: list = Field(description="조리 순서")
+    recipe_cooking_time: str = Field(description="조리 시간")
+    recipe_difficulty: str = Field(description="조리 난이도")
+    recipe_ingredients: list = Field(description="조리에 사용되는 재료(양)")
+    recipe_menu_name: str = Field(description="새로운 레시피의 이름")
+    recipe_tips: str = Field(description="조리팁")
+    recipe_type: str = Field(description="조리 타입")
+    unchanged_parts_and_reasons: str = Field(description="기존 레시피에서 바뀌지 않은 부분과 바뀌지 않은 이유")
 
 def generate_recipe(recipe_info, user_info, recipe_change_type):
     """
@@ -144,7 +160,6 @@ def generate_recipe(recipe_info, user_info, recipe_change_type):
     # langchain 콜백 시스템을 사용한 langchain 실행 추적.
     langfuse_handler = langfuse_tracking()
     
-    # 모델 초기화
     llm = ChatOpenAI(
         model="gpt-4o-mini",
         temperature=0.0,
@@ -154,20 +169,59 @@ def generate_recipe(recipe_info, user_info, recipe_change_type):
     )
     logger_recipe.info("LLM 초기화 완료.")
 
-    # 출력 파서 초기화
     output_parser = JsonOutputParser(pydantic_object=ChangeRecipe)
+    output_parser_3 = JsonOutputParser(pydantic_object=RecipeChangeBalanceNutrition)
     logger_recipe.info("json 출력 파서 초기화 완료.")
 
-    # 프롬프트 템플릿에 출력파서 지정
-    prompt = get_system_prompt(recipe_change_type)
-    prompt = prompt.partial(format_instructions=output_parser.get_format_instructions())
+    # 레시피의 핵심 재료와 맛 Prompt
+    find_keyIngredients_tasty_prompt = get_system_prompt("find_keyIngredients_tasty")
+    
+    # 기능 Prompt
+    feature_prompt = get_system_prompt(choose_feature(recipe_change_type))
+    if recipe_change_type == 3:
+        feature_prompt = feature_prompt.partial(format_instructions=output_parser_3.get_format_instructions(), user_info=user_info, recipe_info=recipe_info)
+    else:
+        feature_prompt = feature_prompt.partial(format_instructions=output_parser.get_format_instructions(), user_info=user_info, recipe_info=recipe_info)
 
-    chain = prompt | llm | output_parser
+    # 평가 Prompt
+    feature_eval_prompt = get_system_prompt("feature_eval")
+    feature_eval_prompt = feature_eval_prompt.partial(format_instructions=output_parser.get_format_instructions(), user_info=user_info, recipe_info=recipe_info)
+
+    if recipe_change_type==3:
+        # 식품군 비율 생성 Prompt
+        generate_food_group_ratio_prompt = get_system_prompt("generate_food_group_ratio")
+        generate_food_group_ratio_prompt_chain = generate_food_group_ratio_prompt | llm | StrOutputParser()
+        
+
+    # Chain (find_keyIngredients_tasty_prompt_chain -> feature_chain -> feature_eval_chain)
+    find_keyIngredients_tasty_prompt_chain = find_keyIngredients_tasty_prompt | llm | StrOutputParser()
+
+    if recipe_change_type==3:
+        feature_chain = (
+        {"recipe_keyIngredients_tasty":find_keyIngredients_tasty_prompt_chain, "original_recipe_food_group_composition":generate_food_group_ratio_prompt_chain}
+        | feature_prompt 
+        | llm 
+        | output_parser_3
+    )
+    else:
+        feature_chain = (
+            {"recipe_keyIngredients_tasty":find_keyIngredients_tasty_prompt_chain}
+            | feature_prompt 
+            | llm 
+            | output_parser
+        )
+    
+
+    # feature_eval_chain = (
+    #     {"llm_generate_recipe":feature_chain}
+    #     | feature_eval_prompt 
+    #     | llm 
+    #     | output_parser
+    # )
+    
     logger_recipe.info("LLM 레시피 생성 중...")
-    result = chain.invoke({"user_info": user_info, "recipe_info": recipe_info}, config={"callbacks": [langfuse_handler]})
+    feature_eval_result = feature_chain.invoke(input={"user_info":user_info, "recipe_info":recipe_info}, config={"callbacks": [langfuse_handler]})
     logger_recipe.info("LLM 레시피 생성 완료")
     
-    # 결과가 리스트인 경우 첫 번째 항목을 사용, 아닌 경우 그대로 사용
-    recipe_result = result[0] if isinstance(result, list) else result
-    
-    return recipe_result
+    return feature_eval_result
+
