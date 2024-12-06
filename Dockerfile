@@ -11,7 +11,7 @@ RUN pip install --upgrade pip
 COPY requirements.txt .
 
 # Step 5: 필요한 Python 패키지 설치
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --use-feature=fast-deps -r requirements.txt
 
 # Step 6: 실행 단계 (runtime image)
 FROM python:3.12.7-slim AS runtime
