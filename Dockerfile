@@ -20,7 +20,7 @@ FROM python:3.12.7-slim AS runtime
 WORKDIR /app
 
 # Step 8: 빌드 단계에서 설치한 패키지를 실행 이미지로 복사
-COPY --from=builder /usr/local/lib/python3.12/dist-packages /usr/local/lib/python3.12/dist-packages
+COPY --from=builder /usr/local/lib/python3.12/dist-packages/ /usr/local/lib/python3.12/dist-packages/
 
 # Step 9: 애플리케이션의 모든 소스 파일을 컨테이너로 복사
 COPY . .
