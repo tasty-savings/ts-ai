@@ -2,7 +2,7 @@ from config import OPENAI_API_KEY, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LAN
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from recipe_change import langfuse_tracking
+from recipe_change_origin import langfuse_tracking
 
 langfuse_handler = langfuse_tracking()
 
