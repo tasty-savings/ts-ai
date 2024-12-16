@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 import datetime
 from recipe_change_origin import generate_recipe, get_user_info, get_recipe_data
+from recipe_recommend import AsyncRecipeSearch
 from logger import logger_main
 from typing import Optional
 import asyncio
@@ -14,6 +15,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT_DIR)
 
 app = FastAPI()
+search_engine = AsyncRecipeSearch()
 
 @app.get("/ai/health-check")
 async def health_check(request: Request):
@@ -49,10 +51,28 @@ async def transform_recipe(
         # user, recipe 정보를 가져오면 레시피 생성
         result = await generate_recipe(recipe_info, user_info, recipe_change_type)
         return JSONResponse(content=result, status_code=200)
-    
+
     except Exception as e:
         logger_main.error(f"에러 발생: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/ai/recommend")
+async def recommend(request: Request):
+    try:
+        data = await request.json()
+        logger_main.debug("body 정보 추출 완료 : %s", data)
+
+        await search_engine.initialize()
+        query_key = ','.join(data.get("search_types", []))
+
+        result = await search_engine.search_recipes(query_key)
+        return result
+
+    except Exception as e:
+        logger_main.error(f"에러 발생: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 # reload=True : 코드 변경 시 자동 재시작
 if __name__ == "__main__":
