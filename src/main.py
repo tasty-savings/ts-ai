@@ -1,20 +1,19 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 import datetime
-from langchain_huggingface import HuggingFaceEmbeddings
 from recipe_change_origin import generate_recipe, get_user_info, get_recipe_data
-from recipe_recommend import SearchConfig, RecipeSearchSingleton
 from logger import logger_main
+from typing import Optional
+import asyncio
+import sys
+import os
+import uvicorn
+
+# 프로젝트 루트 디렉토리를 PYTHONPATH에 추가
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(ROOT_DIR)
 
 app = FastAPI()
-config = SearchConfig(
-    batch_size=50,
-    chunk_size=500,
-    cache_size=1000,
-    max_workers=4
-)
-embeddings_manager = EmbeddingsManager()
-recipe_engine = RecipeSearchSingleton.initialize(embeddings_manager.get_embeddings(), config)
 
 @app.get("/ai/health-check")
 async def health_check(request: Request):
@@ -53,46 +52,8 @@ async def transform_recipe(
     
     except Exception as e:
         logger_main.error(f"에러 발생: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/ai/recommend", methods=['POST'])
-def recommend_recipe():
-    try:
-        data = await request.json()
-        logger_main.debug("body 정보 추출 완료 : %s", data)
-        query_key = ','.join(data.get("search_types", []))
-
-        result = recipe_engine.search_recipes(query_key)
-        
-        return jsonify(result), 200
-    
-    except Exception as e:
-        logger_main.error(f"에러 발생: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/ai/recommend", methods=['POST'])
-def recommend_recipe():
-    try:
-        data = request.get_json()
-        logger_main.debug("body 정보 추출 완료 : %s", data)
-        query_key = ','.join(data.get("search_types", []))
-
-        result = recipe_engine.search_recipes(query_key)
-        
-        return jsonify(result), 200
-    
-    except Exception as e:
-        logger_main.error(f"에러 발생: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # reload=True : 코드 변경 시 자동 재시작
 if __name__ == "__main__":
-    import sys
-    import os
-    
-    # 프로젝트 루트 디렉토리를 PYTHONPATH에 추가
-    ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    sys.path.append(ROOT_DIR)
-    
-    import uvicorn
     uvicorn.run("src.main:app", host="0.0.0.0", port=5555, reload=True)
