@@ -1,36 +1,12 @@
-from flask import Flask, request, jsonify
-from typing import Optional
-import threading
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse
 import datetime
 from langchain_huggingface import HuggingFaceEmbeddings
-from recipe_change import generate_recipe, get_user_info, get_recipe_data
+from recipe_change_origin import generate_recipe, get_user_info, get_recipe_data
 from recipe_recommend import SearchConfig, RecipeSearchSingleton
 from logger import logger_main
 
-
-class EmbeddingsManager:
-    _instance: Optional['EmbeddingsManager'] = None
-    _lock = threading.Lock()
-    _embeddings: Optional[HuggingFaceEmbeddings] = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def get_embeddings(self) -> HuggingFaceEmbeddings:
-        if self._embeddings is None:
-            with self._lock:
-                if self._embeddings is None:
-                    self._embeddings = HuggingFaceEmbeddings(
-                        model_name="all-MiniLM-L6-v2"
-                    )
-        return self._embeddings
-
-
-app = Flask(__name__)
+app = FastAPI()
 config = SearchConfig(
     batch_size=50,
     chunk_size=500,
@@ -40,27 +16,54 @@ config = SearchConfig(
 embeddings_manager = EmbeddingsManager()
 recipe_engine = RecipeSearchSingleton.initialize(embeddings_manager.get_embeddings(), config)
 
-@app.route("/ai/health-check")
-def hello():
-    client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
-    return f'Hello My Flask World! <br><br> Now: {datetime.datetime.now()} <br><br> Your IP: {client_ip}'
+@app.get("/ai/health-check")
+async def health_check(request: Request):
+    client_ip = request.client.host
+    return {
+        'message': 'Hello My FastAPI World!',
+        'time': datetime.datetime.now(),
+        'client_ip': client_ip
+    }
 
-@app.route("/ai/recipe", methods=['POST'])
-def transform_recipe():
-    recipe_change_type = request.args.get('recipe_change_type', default=0, type=int)
-    recipe_info_index = request.args.get('recipe_info_index', default=0, type=str)
+@app.post("/ai/recipe")
+async def transform_recipe(
+    request: Request,
+    recipe_change_type: Optional[int] = 0,
+    recipe_info_index: Optional[str] = "0"
+):
     logger_main.debug(f"recipe_chage_type : {recipe_change_type}, recipe_info_index : {recipe_info_index}")
-    if not request.is_json:
+    
+    if not request.headers.get("content-type") == "application/json":
         logger_main.error("Content-Type 헤더가 'application/json'이 아닙니다.")
-        return jsonify({"error": "Content-Type 헤더가 'application/json'이 아닙니다."}), 400
+        raise HTTPException(status_code=400, detail="Content-Type 헤더가 'application/json'이 아닙니다.")
 
     try:
-        data = request.get_json()
+        data = await request.json()
         logger_main.debug("body 정보 추출 완료 : %s", data)
-        user_info = get_user_info(recipe_change_type, data)
-        recipe_info = get_recipe_data(recipe_info_index)
-        result = generate_recipe(recipe_info, user_info, recipe_change_type)
-        # dict를 json으로 변환하여 반환
+        
+        # user, recipe 정보 비동기로 가져옴
+        user_info, recipe_info = await asyncio.gather(
+            get_user_info(recipe_change_type, data),
+            get_recipe_data(recipe_info_index)
+        )
+        
+        # user, recipe 정보를 가져오면 레시피 생성
+        result = await generate_recipe(recipe_info, user_info, recipe_change_type)
+        return JSONResponse(content=result, status_code=200)
+    
+    except Exception as e:
+        logger_main.error(f"에러 발생: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/ai/recommend", methods=['POST'])
+def recommend_recipe():
+    try:
+        data = await request.json()
+        logger_main.debug("body 정보 추출 완료 : %s", data)
+        query_key = ','.join(data.get("search_types", []))
+
+        result = recipe_engine.search_recipes(query_key)
+        
         return jsonify(result), 200
     
     except Exception as e:
@@ -80,9 +83,16 @@ def recommend_recipe():
     
     except Exception as e:
         logger_main.error(f"에러 발생: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-    
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port="5555", debug=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
+# reload=True : 코드 변경 시 자동 재시작
+if __name__ == "__main__":
+    import sys
+    import os
     
+    # 프로젝트 루트 디렉토리를 PYTHONPATH에 추가
+    ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.append(ROOT_DIR)
+    
+    import uvicorn
+    uvicorn.run("src.main:app", host="0.0.0.0", port=5555, reload=True)
