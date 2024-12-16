@@ -63,21 +63,25 @@ class MongoDB:
             logger_db.error(f"단일 문서 조회 실패 - 컬렉션: {collection_name}, 쿼리: {query}", exc_info=True)
             raise
 
-    def find_many(self, collection_name, query=None, projection=None):
-        """다중 문서 조회"""
+    def find_many(self, collection_name, query=None, projection=None, limit=None):
+        """다중 문서 조회 """
+        print(f"find_many 호출됨 - 컬렉션: {collection_name}, limit: {limit}")
         query = query or {}
         projection = projection or {}
         try:
             collection = self._log_and_get_collection(collection_name)
-            logger_db.info(f"다중 문서 조회 - 컬렉션: {collection_name}, 쿼리: {query}")
+            logger_db.info(f"다중 문서 조회 - 컬렉션: {collection_name}, 쿼리: {query}, limit: {limit}")
 
             with self._measure_time(f"find_many 쿼리 ({collection_name})"):
-                results = list(collection.find(query, projection))
+                cursor = collection.find(query, projection)
+                if limit is not None and limit > 0:
+                    cursor = cursor.limit(limit)  # limit 옵션 적용
+                results = list(cursor)
 
             logger_db.info(f"문서 {len(results)}개 조회 성공 - 컬렉션: {collection_name}")
             return results
         except Exception as e:
-            logger_db.error(f"다중 문서 조회 실패 - 컬렉션: {collection_name}, 쿼리: {query}", exc_info=True)
+            logger_db.error(f"다중 문서 조회 실패 - 컬렉션: {collection_name}, 쿼리: {query}, limit: {limit}", exc_info=True)
             raise
 
     def close(self):
