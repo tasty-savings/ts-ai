@@ -103,11 +103,11 @@ def create_recipe_graph(
     # 노드 추가
     workflow.add_node("initialize", initialize_state)
     workflow.add_node("analyze_key_ingredients", 
-                     lambda state: analyze_key_ingredients(state, llm, prompts["key_ingredients"]))
+                    lambda state: analyze_key_ingredients(state, llm, prompts["key_ingredients"]))
     workflow.add_node("analyze_food_group",
-                     lambda state: analyze_food_group(state, llm, prompts["food_group"]))
+                    lambda state: analyze_food_group(state, llm, prompts["food_group"]))
     workflow.add_node("generate_recipe",
-                     lambda state: generate_transformed_recipe(state, llm, prompts, output_parsers))
+                    lambda state: generate_transformed_recipe(state, llm, prompts, output_parsers))
     
     # 엣지 연결
     workflow.add_edge("initialize", "analyze_key_ingredients")
