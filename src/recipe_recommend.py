@@ -1,10 +1,7 @@
 import os
 import time
 import asyncio
-from functools import lru_cache
-
 import numpy as np
-from db import MongoDB
 from dotenv import load_dotenv
 from collections import Counter
 from statistics import mean, median
@@ -71,7 +68,6 @@ class RecipeSearchAnalytics:
     def calculate_metrics(exact_matches: List[Dict],
                           similar_matches: List[Dict],
                           search_types: List[str]) -> Dict:
-
         all_results = exact_matches + similar_matches
 
         if not all_results:
@@ -114,54 +110,65 @@ class RecipeSearchAnalytics:
         }
 
 class AsyncRecipeSearch:
-    def __init__(self, rate_limit: int = 3000):
-        self._type_embeddings = {}
-        self._similarity_cache = {}
-        self._index = None
-        self._index_cache = None
-        self._initialized = False
-        self._initialization_lock = asyncio.Lock()
-        self.data_dir = os.path.join(ROOT_DIR, "data")
-        self.rate_limiter = AsyncRateLimiter(rate_limit)
-        self.embeddings = OpenAIEmbeddings(
-            model="text-embedding-3-small",
-            openai_api_key=os.getenv("OPENAI_API_KEY")
-        )
-        self._langfuse = Langfuse(
-            public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
-            secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
-            host="https://cloud.langfuse.com"
-        )
+    _instance = None
+    _type_embeddings = {}
+    _similarity_cache = {}
+    _index = None
+    _index_cache = None
+    _initialized = False
+    _initialization_lock = asyncio.Lock()
+    _data_dir = os.path.join(ROOT_DIR, "data")
+    _embeddings = None
+    _langfuse = None
+    _rate_limiter = None
 
-    async def initialize(self):
-        if self._initialized:
+    def __new__(cls, rate_limit: int = 3000):
+        if cls._instance is None:
+            cls._instance = super(AsyncRecipeSearch, cls).__new__(cls)
+            cls._embeddings = OpenAIEmbeddings(
+                model="text-embedding-3-small",
+                openai_api_key=os.getenv("OPENAI_API_KEY")
+            )
+            cls._langfuse = Langfuse(
+                public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
+                secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
+                host="https://cloud.langfuse.com"
+            )
+            cls._rate_limiter = AsyncRateLimiter(rate_limit)
+        return cls._instance
+
+    @classmethod
+    async def initialize(cls):
+        if cls._initialized:
             return
 
-        async with self._initialization_lock:
-            if self._initialized:
+        async with cls._initialization_lock:
+            if cls._initialized:
                 return
 
-        await self._load_embeddings()
-        await self._load_index()
-        self._initialized = True
+            await cls._load_embeddings()
+            await cls._load_index()
+            cls._initialized = True
 
-    async def _load_embeddings(self):
+    @classmethod
+    async def _load_embeddings(cls):
         """레시피 타입 임베딩 로드 또는 계산"""
-        cache_path = os.path.join(self.data_dir, "type_embeddings.npy")
-        self._type_embeddings = await asyncio.to_thread(np.load, cache_path, allow_pickle=True)
-        self._type_embeddings = self._type_embeddings.item()
+        cache_path = os.path.join(cls._data_dir, "type_embeddings.npy")
+        cls._type_embeddings = await asyncio.to_thread(np.load, cache_path, allow_pickle=True)
+        cls._type_embeddings = cls._type_embeddings.item()
 
-    async def _load_index(self):
+    @classmethod
+    async def _load_index(cls):
         """FAISS 인덱스 로드"""
-        index_path = os.path.join(self.data_dir, "recipe_index")
-        if self._index_cache is None:
-            self._index_cache = await asyncio.to_thread(
+        index_path = os.path.join(cls._data_dir, "recipe_index")
+        if cls._index_cache is None:
+            cls._index_cache = await asyncio.to_thread(
                 FAISS.load_local,
                 index_path,
-                self.embeddings,
+                cls._embeddings,
                 allow_dangerous_deserialization=True
             )
-        self._index = self._index_cache
+        cls._index = cls._index_cache
 
     @staticmethod
     def _get_recipe_types() -> Set[str]:
@@ -175,20 +182,22 @@ class AsyncRecipeSearch:
             "무기질", "삶기", "특별식", "죽", "글루텐프리", "전", "일식", "스프"
         }
 
-    async def _calculate_type_similarity(self, type1: str, type2: str) -> float:
+    @classmethod
+    async def _calculate_type_similarity(cls, type1: str, type2: str) -> float:
         """두 레시피 타입 간의 유사도 계산"""
         cache_key = (type1, type2)
-        if cache_key in self._similarity_cache:
-            return self._similarity_cache[cache_key]
+        if cache_key in cls._similarity_cache:
+            return cls._similarity_cache[cache_key]
 
-        emb1 = self._type_embeddings[type1]
-        emb2 = self._type_embeddings[type2]
+        emb1 = cls._type_embeddings[type1]
+        emb2 = cls._type_embeddings[type2]
         similarity = float(np.dot(emb1, emb2) / (np.linalg.norm(emb1) * np.linalg.norm(emb2)))
 
-        self._similarity_cache[cache_key] = similarity
+        cls._similarity_cache[cache_key] = similarity
         return similarity
 
-    async def _calculate_recipe_score(self, doc_data: Tuple[Document, float], search_types: List[str]) -> ScoringResult:
+    @classmethod
+    async def _calculate_recipe_score(cls, doc_data: Tuple[Document, float], search_types: List[str]) -> ScoringResult:
         """레시피 스코어 계산"""
         doc, vector_score = doc_data
         recipe_types = set(doc.metadata.get('recipe_type', []))
@@ -214,7 +223,7 @@ class AsyncRecipeSearch:
             if search_type in recipe_types:
                 similarity_tasks.append(1.0)
             else:
-                similarities = await asyncio.gather(*[self._calculate_type_similarity(search_type, recipe_type)
+                similarities = await asyncio.gather(*[cls._calculate_type_similarity(search_type, recipe_type)
                     for recipe_type in recipe_types])
                 similarity_tasks.append(max(similarities) if similarities else 0.0)
 
@@ -241,28 +250,29 @@ class AsyncRecipeSearch:
             has_exact_match=len(matches) > 0
         )
 
-    async def search_recipes(self, query_types: str, k: int = 100) -> List[str]:
+    @classmethod
+    async def search_recipes(cls, query_types: str, k: int = 100) -> List[str]:
         """레시피 검색"""
         search_types = query_types.split(',')
         query = " ".join(f"이 레시피는 {tag} 요리입니다." for tag in search_types)
 
         # Langfuse 트레이스 시작
-        trace = self._langfuse.trace(
+        trace = cls._langfuse.trace(
             name="recipe_search",
             metadata={"query_key": query_types, "k": k}
         )
 
         # FAISS 검색
-        await self.rate_limiter.wait_if_needed()
+        await cls._rate_limiter.wait_if_needed()
         initial_results = await asyncio.to_thread(
-            self._index.similarity_search_with_score,
+            cls._index.similarity_search_with_score,
             query,
             k * 2
         )
 
         # 스코어 계산
         scored_results = await asyncio.gather(*[
-            self._calculate_recipe_score(doc_data, search_types)
+            cls._calculate_recipe_score(doc_data, search_types)
             for doc_data in initial_results
         ])
 
