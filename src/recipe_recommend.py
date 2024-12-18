@@ -119,6 +119,8 @@ class AsyncRecipeSearch:
         self._similarity_cache = {}
         self._index = None
         self._index_cache = None
+        self._initialized = False
+        self._initialization_lock = asyncio.Lock()
         self.data_dir = os.path.join(ROOT_DIR, "data")
         self.rate_limiter = AsyncRateLimiter(rate_limit)
         self.embeddings = OpenAIEmbeddings(
@@ -132,13 +134,22 @@ class AsyncRecipeSearch:
         )
 
     async def initialize(self):
+        if self._initialized:
+            return
+
+        async with self._initialization_lock:
+            if self._initialized:
+                return
+
         await self._load_embeddings()
         await self._load_index()
+        self._initialized = True
 
     async def _load_embeddings(self):
         """레시피 타입 임베딩 로드 또는 계산"""
         cache_path = os.path.join(self.data_dir, "type_embeddings.npy")
-        self._type_embeddings = np.load(cache_path, allow_pickle=True).item()
+        self._type_embeddings = await asyncio.to_thread(np.load, cache_path, allow_pickle=True)
+        self._type_embeddings = self._type_embeddings.item()
 
     async def _load_index(self):
         """FAISS 인덱스 로드"""
@@ -151,37 +162,6 @@ class AsyncRecipeSearch:
                 allow_dangerous_deserialization=True
             )
         self._index = self._index_cache
-
-    async def _load_recipe_data(self) -> List[RecipeDocument]:
-        """MongoDB에서 레시피 데이터를 로드"""
-        try:
-            def fetch_data():
-                # MongoDB 클래스를 컨텍스트 매니저로 사용
-                with MongoDB() as mongo:
-                    results = mongo.find_many('recipe')
-                    return results
-
-            # 동기 DB 작업을 비동기로 실행
-            documents = await asyncio.to_thread(fetch_data)
-
-            recipes = []
-            for doc in documents:
-                try:
-                    recipe = RecipeDocument(
-                        id=doc['_id'],
-                        title=doc['title'],
-                        recipe_type=doc['recipe_type'],
-                    )
-                    recipes.append(recipe)
-                except KeyError as e:
-                    print(f"Error processing recipe {doc.get('title', 'Unknown')}: {e}")
-                    continue
-
-            return recipes
-
-        except Exception as e:
-            print(f"Error loading recipe data: {str(e)}")
-            raise
 
     @staticmethod
     def _get_recipe_types() -> Set[str]:
