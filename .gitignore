@@ -31,3 +31,5 @@ aws_key.py
 # 데이터
 recipe_analysis_checkpoint_20241107_091855.csv
 src/mongodb_ex.json
+
+data/recipe_index
