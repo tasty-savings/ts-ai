@@ -1,6 +1,8 @@
 import os
 import time
 import asyncio
+from functools import lru_cache
+
 import numpy as np
 from db import MongoDB
 from dotenv import load_dotenv
@@ -116,6 +118,7 @@ class AsyncRecipeSearch:
         self._type_embeddings = {}
         self._similarity_cache = {}
         self._index = None
+        self._index_cache = None
         self.data_dir = os.path.join(ROOT_DIR, "data")
         self.rate_limiter = AsyncRateLimiter(rate_limit)
         self.embeddings = OpenAIEmbeddings(
@@ -137,28 +140,22 @@ class AsyncRecipeSearch:
         cache_path = os.path.join(self.data_dir, "type_embeddings.npy")
         self._type_embeddings = np.load(cache_path, allow_pickle=True).item()
 
-    async def _load_index(self):
-        """FAISS 인덱스 로드"""
-        index_path = os.path.join(self.data_dir, "recipe_index")
-        if not os.path.exists(index_path):
-            documents = await self._load_recipe_data()
-            langchain_docs = [doc.to_langchain_document() for doc in documents]
-            self._index = await asyncio.to_thread(
-                FAISS.from_documents,
-                langchain_docs,
-                self.embeddings
-            )
-            await asyncio.to_thread(
-                self._index.save_local,
-                index_path
-            )
-        else:
-            self._index = await asyncio.to_thread(
+    @lru_cache(maxsize=1)
+    async def _get_cached_index(self, index_path: str):
+        """FAISS 인덱스를 캐시하여 반환"""
+        if self._index_cache is None:
+            self._index_cache = await asyncio.to_thread(
                 FAISS.load_local,
                 index_path,
                 self.embeddings,
                 allow_dangerous_deserialization=True
             )
+        return self._index_cache
+
+    async def _load_index(self):
+        """FAISS 인덱스 로드"""
+        index_path = os.path.join(self.data_dir, "recipe_index")
+        self._index = await self._get_cached_index(index_path)
 
     async def _load_recipe_data(self) -> List[RecipeDocument]:
         """MongoDB에서 레시피 데이터를 로드"""
@@ -269,7 +266,8 @@ class AsyncRecipeSearch:
             has_exact_match=len(matches) > 0
         )
 
-    async def search_recipes(self, query_types: str, k: int = 10) -> List[str]:
+    @lru_cache(maxsize=1000)
+    async def search_recipes(self, query_types: str, k: int = 100) -> List[str]:
         """레시피 검색"""
         search_types = query_types.split(',')
         query = " ".join(f"이 레시피는 {tag} 요리입니다." for tag in search_types)
@@ -285,7 +283,7 @@ class AsyncRecipeSearch:
         initial_results = await asyncio.to_thread(
             self._index.similarity_search_with_score,
             query,
-            k * 5
+            k * 2
         )
 
         # 스코어 계산
