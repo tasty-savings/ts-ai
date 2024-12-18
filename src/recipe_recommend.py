@@ -6,7 +6,6 @@ from db import MongoDB
 from dotenv import load_dotenv
 from collections import Counter
 from statistics import mean, median
-from functools import lru_cache
 from dataclasses import dataclass
 from langfuse import Langfuse
 from langchain_openai import OpenAIEmbeddings
@@ -133,7 +132,7 @@ class AsyncRecipeSearch:
 
     async def _load_embeddings(self):
         """레시피 타입 임베딩 로드 또는 계산"""
-        cache_path = "../data/type_embeddings_openai.npy"
+        cache_path = "../data/type_embeddings.npy"
         if os.path.exists(cache_path):
             self._type_embeddings = np.load(cache_path, allow_pickle=True).item()
         else:
@@ -152,7 +151,7 @@ class AsyncRecipeSearch:
 
     async def _load_index(self):
         """FAISS 인덱스 로드"""
-        if not os.path.exists("../data/recipe_index_openai"):
+        if not os.path.exists("../data/recipe_index"):
             documents = await self._load_recipe_data()
             langchain_docs = [doc.to_langchain_document() for doc in documents]
             self._index = await asyncio.to_thread(
@@ -162,12 +161,12 @@ class AsyncRecipeSearch:
             )
             await asyncio.to_thread(
                 self._index.save_local,
-                "../data/recipe_index_openai"
+                "../data/recipe_index"
             )
         else:
             self._index = await asyncio.to_thread(
                 FAISS.load_local,
-                "../data/recipe_index_openai",
+                "../data/recipe_index",
                 self.embeddings,
                 allow_dangerous_deserialization=True
             )
@@ -281,12 +280,8 @@ class AsyncRecipeSearch:
             has_exact_match=len(matches) > 0
         )
 
-    @lru_cache(maxsize=1000)
     async def search_recipes(self, query_types: str, k: int = 10) -> List[str]:
         """레시피 검색"""
-        if self._index is None:
-            raise RuntimeError("Search engine not initialized. Call initialize() first.")
-
         search_types = query_types.split(',')
         query = " ".join(f"이 레시피는 {tag} 요리입니다." for tag in search_types)
 
