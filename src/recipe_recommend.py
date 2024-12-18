@@ -2,6 +2,7 @@ import os
 import time
 import asyncio
 import numpy as np
+from db import MongoDB
 from dotenv import load_dotenv
 from collections import Counter
 from statistics import mean, median
@@ -139,12 +140,56 @@ class AsyncRecipeSearch:
     async def _load_index(self):
         """FAISS 인덱스 로드"""
         index_path = os.path.join(self.data_dir, "recipe_index")
-        self._index = await asyncio.to_thread(
-            FAISS.load_local,
-            index_path,
-            self.embeddings,
-            allow_dangerous_deserialization=True
-        )
+        if not os.path.exists(index_path):
+            documents = await self._load_recipe_data()
+            langchain_docs = [doc.to_langchain_document() for doc in documents]
+            self._index = await asyncio.to_thread(
+                FAISS.from_documents,
+                langchain_docs,
+                self.embeddings
+            )
+            await asyncio.to_thread(
+                self._index.save_local,
+                index_path
+            )
+        else:
+            self._index = await asyncio.to_thread(
+                FAISS.load_local,
+                index_path,
+                self.embeddings,
+                allow_dangerous_deserialization=True
+            )
+
+    async def _load_recipe_data(self) -> List[RecipeDocument]:
+        """MongoDB에서 레시피 데이터를 로드"""
+        try:
+            def fetch_data():
+                # MongoDB 클래스를 컨텍스트 매니저로 사용
+                with MongoDB() as mongo:
+                    results = mongo.find_many('recipe')
+                    return results
+
+            # 동기 DB 작업을 비동기로 실행
+            documents = await asyncio.to_thread(fetch_data)
+
+            recipes = []
+            for doc in documents:
+                try:
+                    recipe = RecipeDocument(
+                        id=doc['_id'],
+                        title=doc['title'],
+                        recipe_type=doc['recipe_type'],
+                    )
+                    recipes.append(recipe)
+                except KeyError as e:
+                    print(f"Error processing recipe {doc.get('title', 'Unknown')}: {e}")
+                    continue
+
+            return recipes
+
+        except Exception as e:
+            print(f"Error loading recipe data: {str(e)}")
+            raise
 
     @staticmethod
     def _get_recipe_types() -> Set[str]:
