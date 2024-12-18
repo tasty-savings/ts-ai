@@ -15,14 +15,13 @@ import uvicorn
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT_DIR)
 
-search_engine = None
+search_engine = AsyncRecipeSearch()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # startup 이벤트
     global search_engine
     logger_main.info("Initializing search engine...")
-    search_engine = AsyncRecipeSearch()
     await search_engine.initialize()
     logger_main.info("Search engine initialized successfully")
 
