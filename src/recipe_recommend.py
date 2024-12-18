@@ -2,7 +2,6 @@ import os
 import time
 import asyncio
 import numpy as np
-from db import MongoDB
 from dotenv import load_dotenv
 from collections import Counter
 from statistics import mean, median
@@ -14,6 +13,7 @@ from langchain_community.vectorstores import FAISS
 from typing import List, Dict, Set, Tuple
 
 load_dotenv()
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 @dataclass
 class ScoringResult:
@@ -115,6 +115,7 @@ class AsyncRecipeSearch:
         self._type_embeddings = {}
         self._similarity_cache = {}
         self._index = None
+        self.data_dir = os.path.join(ROOT_DIR, "data")
         self.rate_limiter = AsyncRateLimiter(rate_limit)
         self.embeddings = OpenAIEmbeddings(
             model="text-embedding-3-small",
@@ -132,75 +133,18 @@ class AsyncRecipeSearch:
 
     async def _load_embeddings(self):
         """레시피 타입 임베딩 로드 또는 계산"""
-        cache_path = "../data/type_embeddings.npy"
-        if os.path.exists(cache_path):
-            self._type_embeddings = np.load(cache_path, allow_pickle=True).item()
-        else:
-            recipe_types = self._get_recipe_types()
-            embeddings = await asyncio.gather(*[
-                self._get_embedding(recipe_type)
-                for recipe_type in recipe_types
-            ])
-            self._type_embeddings = {t: e for t, e in zip(recipe_types, embeddings)}
-            np.save(cache_path, self._type_embeddings)
-
-    async def _get_embedding(self, text: str) -> np.ndarray:
-        """임베딩 생성 with rate limiting"""
-        await self.rate_limiter.wait_if_needed()
-        return await asyncio.to_thread(self.embeddings.embed_query, text)
+        cache_path = os.path.join(self.data_dir, "type_embeddings.npy")
+        self._type_embeddings = np.load(cache_path, allow_pickle=True).item()
 
     async def _load_index(self):
         """FAISS 인덱스 로드"""
-        if not os.path.exists("../data/recipe_index"):
-            documents = await self._load_recipe_data()
-            langchain_docs = [doc.to_langchain_document() for doc in documents]
-            self._index = await asyncio.to_thread(
-                FAISS.from_documents,
-                langchain_docs,
-                self.embeddings
-            )
-            await asyncio.to_thread(
-                self._index.save_local,
-                "../data/recipe_index"
-            )
-        else:
-            self._index = await asyncio.to_thread(
-                FAISS.load_local,
-                "../data/recipe_index",
-                self.embeddings,
-                allow_dangerous_deserialization=True
-            )
-
-    async def _load_recipe_data(self) -> List[RecipeDocument]:
-        """MongoDB에서 레시피 데이터를 로드"""
-        try:
-            def fetch_data():
-                # MongoDB 클래스를 컨텍스트 매니저로 사용
-                with MongoDB() as mongo:
-                    results = mongo.find_many('recipe')
-                    return results
-
-            # 동기 DB 작업을 비동기로 실행
-            documents = await asyncio.to_thread(fetch_data)
-
-            recipes = []
-            for doc in documents:
-                try:
-                    recipe = RecipeDocument(
-                        id=doc['_id'],
-                        title=doc['title'],
-                        recipe_type=doc['recipe_type'],
-                    )
-                    recipes.append(recipe)
-                except KeyError as e:
-                    print(f"Error processing recipe {doc.get('title', 'Unknown')}: {e}")
-                    continue
-
-            return recipes
-
-        except Exception as e:
-            print(f"Error loading recipe data: {str(e)}")
-            raise
+        index_path = os.path.join(self.data_dir, "recipe_index")
+        self._index = await asyncio.to_thread(
+            FAISS.load_local,
+            index_path,
+            self.embeddings,
+            allow_dangerous_deserialization=True
+        )
 
     @staticmethod
     def _get_recipe_types() -> Set[str]:
