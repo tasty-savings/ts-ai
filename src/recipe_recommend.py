@@ -140,9 +140,9 @@ class AsyncRecipeSearch:
         cache_path = os.path.join(self.data_dir, "type_embeddings.npy")
         self._type_embeddings = np.load(cache_path, allow_pickle=True).item()
 
-    @lru_cache(maxsize=1)
-    async def _get_cached_index(self, index_path: str):
-        """FAISS 인덱스를 캐시하여 반환"""
+    async def _load_index(self):
+        """FAISS 인덱스 로드"""
+        index_path = os.path.join(self.data_dir, "recipe_index")
         if self._index_cache is None:
             self._index_cache = await asyncio.to_thread(
                 FAISS.load_local,
@@ -150,12 +150,7 @@ class AsyncRecipeSearch:
                 self.embeddings,
                 allow_dangerous_deserialization=True
             )
-        return self._index_cache
-
-    async def _load_index(self):
-        """FAISS 인덱스 로드"""
-        index_path = os.path.join(self.data_dir, "recipe_index")
-        self._index = await self._get_cached_index(index_path)
+        self._index = self._index_cache
 
     async def _load_recipe_data(self) -> List[RecipeDocument]:
         """MongoDB에서 레시피 데이터를 로드"""
@@ -266,7 +261,6 @@ class AsyncRecipeSearch:
             has_exact_match=len(matches) > 0
         )
 
-    @lru_cache(maxsize=1000)
     async def search_recipes(self, query_types: str, k: int = 100) -> List[str]:
         """레시피 검색"""
         search_types = query_types.split(',')
