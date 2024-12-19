@@ -1,11 +1,15 @@
 from config import OPENAI_API_KEY, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST
 from langchain_openai import ChatOpenAI
+from langfuse import Langfuse
+from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 from logger import logger_recipe
 from db import MongoDB
 from bson import ObjectId
 from langfuse.callback import CallbackHandler
 from pydantic import BaseModel, Field
+
+langfuse = Langfuse()
 
 def langfuse_tracking():
     """
@@ -79,6 +83,37 @@ async def get_user_info(recipe_change_type, data):
         }
     logger_recipe.info("사용자 정보 추출 완료 : %s", user_info)
     return user_info
+
+def get_system_prompt(langfuse_prompt_name):
+    """LLM 프롬프트를 가져오는 함수각 프롬프트 파일은 langfuse에 저장되어 있고, tracking 가능"""
+    # langfuse_text_prompt = langfuse.get_prompt(langfuse_prompt_name)
+    # custom : 캐싱, 재시도, 타임아웃 
+    langfuse_text_prompt = langfuse.get_prompt(
+        langfuse_prompt_name,
+        cache_ttl_seconds=300,  # 캐시 TTL 300초 (default=60)
+        max_retries=3,          # 최대 재시도 횟수 3회 (default=2)
+        fetch_timeout_seconds=3 # API 호출 타임아웃 3초 (default=20)
+    )
+    
+    langchain_text_prompt = PromptTemplate.from_template(
+        langfuse_text_prompt.get_langchain_prompt(),
+        metadata={"langfuse_prompt": langfuse_text_prompt},
+    )
+
+    logger_recipe.info("langfuse prompt template 생성 완료")
+    return langchain_text_prompt
+
+def choose_feature(recipe_change_type):
+    if recipe_change_type==1:
+        langfuse_prompt_name = "fridge_recipe_transform"
+    elif recipe_change_type==2:
+        langfuse_prompt_name = "simple_recipe_transform"
+    elif recipe_change_type==3:
+        langfuse_prompt_name = "balance_nutrition"
+    else:
+        logger_recipe.error("Langfuse Prompt Get Error")
+        raise ValueError(f"지원하지 않는 recipe_change_type: {recipe_change_type}")
+    return langfuse_prompt_name
 
 class ChangeRecipe(BaseModel):
     main_changes_from_original_recipe: str = Field(description="기본 레시피와 새로운 레시피 사이의 주요 변경점")

@@ -1,44 +1,24 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 import datetime
-from recipe_change_origin import generate_recipe, get_user_info, get_recipe_data, get_system_prompt
+from recipe_change_origin import generate_recipe, get_user_info, get_recipe_data, get_system_prompt, choose_feature
 from logger import logger_main
 from typing import Optional
-from langfuse import Langfuse
-from langchain_core.prompts import PromptTemplate
 import asyncio
 
 app = FastAPI()
-langfuse = Langfuse()
 
-def get_system_prompt(recipe_change_type):
-    """LLM 프롬프트를 가져오는 함수 (각 프롬프트 파일은 langfuse에 저장되어 있고, tracking 가능)"""
-    if recipe_change_type==1:
-        langfuse_prompt_name = "fridge_recipe_transform"
-    elif recipe_change_type==2:
-        langfuse_prompt_name = "simple_recipe_transform"
-    elif recipe_change_type==3:
-        langfuse_prompt_name = "balance_nutrition"
-    else:
-        logger_main.error("Langfuse Prompt Get Error")
-        raise ValueError(f"지원하지 않는 recipe_change_type: {recipe_change_type}")
-    
-    # langfuse_text_prompt = langfuse.get_prompt(langfuse_prompt_name)
-    # 캐시 ttl, 재시도, timeout 지정
-    langfuse_text_prompt = langfuse.get_prompt(
-        langfuse_prompt_name,
-        cache_ttl_seconds=300,  # 캐시 TTL 300초 (default=60)
-        max_retries=3,          # 최대 재시도 횟수 3회 (default=2)
-        fetch_timeout_seconds=3 # API 호출 타임아웃 3초 (default=20)
-    )
-    
-    langchain_text_prompt = PromptTemplate.from_template(
-        langfuse_text_prompt.get_langchain_prompt(),
-        metadata={"langfuse_prompt": langfuse_text_prompt},
-    )
-
-    logger_main.info("langfuse prompt template 생성 완료")
-    return langchain_text_prompt
+# Pre-fetch prompts (캐싱 for 고가용성)
+def fetch_prompts_on_startup():
+    try:
+        for recipe_change_type in range(1,4):
+            get_system_prompt(choose_feature(recipe_change_type))
+        get_system_prompt("find_keyIngredients_tasty")
+        get_system_prompt("generate_food_group_ratio")
+    except Exception as e:
+        print(f"Failed to fetch prompt on startup: {e}")
+        sys.exit(1)  # Exit the application if the prompt is not available
+fetch_prompts_on_startup()
 
 @app.get("/ai/health-check")
 async def health_check(request: Request):
