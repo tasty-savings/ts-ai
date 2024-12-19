@@ -11,13 +11,17 @@ from pydantic import BaseModel, Field
 
 langfuse = Langfuse()
 
-def langfuse_tracking():
-    """
-        langchain 콜백 시스템을 사용한 langchain 실행 추적
+llm = ChatOpenAI(
+        model="gpt-4o-mini",
+        temperature=0.0,
+        max_tokens=1000,
+        timeout=20,
+        api_key=OPENAI_API_KEY
+)
+logger_recipe.info("LLM 초기화 완료.")
 
-        Returns:
-            CallbackHandler: LangFuse의 실행 추적을 위한 CallbackHandler 객체.
-    """
+def langfuse_tracking():
+    """langchain 콜백 시스템을 사용한 langchain 실행 추적"""
     langfuse_handler = CallbackHandler(
         public_key=LANGFUSE_PUBLIC_KEY,
         secret_key=LANGFUSE_SECRET_KEY,
@@ -26,15 +30,7 @@ def langfuse_tracking():
     return langfuse_handler
 
 async def get_recipe_data(recipe_info_index):
-    """
-        recipe_info_index 따라 레시피 정보를 가져오는 함수
-        
-        Args:
-            int: 레시피 정보 인덱스
-            
-        Returns:
-            dict: 레시피 정보
-    """
+    """recipe_info_index 따라 레시피 정보를 가져오는 함수"""
     with MongoDB() as mongo_db:
         try:
             collection_name = "recipe"  # 컬렉션 이름 (필요에 따라 수정)
@@ -55,17 +51,7 @@ async def get_recipe_data(recipe_info_index):
             return None
 
 async def get_user_info(recipe_change_type, data):
-    """
-    요청 데이터에서 user_info를 추출하는 함수
-    
-    Args:
-        recipe_change_type (int): 레시피 변환 기능에서 프롬프트를 바꾸기 위한 인덱스 
-                (0: 기본값, 1: 냉장고 파먹기, 2: 레시피 단순화, 3: 사용자 영양 맞춤형 레시피)
-        data (dict): 사용자 데이터
-        
-    Returns:
-        dict: 사용자 정보
-    """
+    """요청 데이터에서 user_info를 추출하는 함수"""
     if recipe_change_type == 1:
         user_info = {
             "user_allergy_ingredients": data.get('user_allergy_ingredients', []),
@@ -143,28 +129,9 @@ class RecipeChangeBalanceNutrition(BaseModel):
     unchanged_parts_and_reasons: str = Field(description="기존 레시피에서 바뀌지 않은 부분과 바뀌지 않은 이유")
 
 async def generate_recipe(recipe_info, user_info, recipe_change_type):
-    """
-    레시피를 생성하는 함수
-    
-    Args:
-        recipe_info, user_info (dict): 레시피 정보, 사용자 정보
-        recipe_change_type (int): 레시피 변환 기능에서 프롬프트를 바꾸기 위한 인덱스 
-            (0: 기본값, 1: 냉장고 파먹기, 2: 레시피 단순화, 3: 사용자 영양 맞춤형 레시피)
-    
-    Returns:
-        dict: 생성된 레시피 정보
-    """
+    """레시피를 생성하는 함수"""
     # langchain 콜백 시스템을 사용한 langchain 실행 추적.
     langfuse_handler = langfuse_tracking()
-    
-    llm = ChatOpenAI(
-        model="gpt-4o-mini",
-        temperature=0.0,
-        max_tokens=1000,
-        timeout=20,
-        api_key=OPENAI_API_KEY
-    )
-    logger_recipe.info("LLM 초기화 완료.")
 
     output_parser = JsonOutputParser(pydantic_object=ChangeRecipe)
     output_parser_3 = JsonOutputParser(pydantic_object=RecipeChangeBalanceNutrition)
@@ -189,7 +156,6 @@ async def generate_recipe(recipe_info, user_info, recipe_change_type):
         generate_food_group_ratio_prompt = get_system_prompt("generate_food_group_ratio")
         generate_food_group_ratio_prompt_chain = generate_food_group_ratio_prompt | llm | StrOutputParser()
         # return generate_food_group_ratio_prompt_chain.invoke(input={"recipe_info":recipe_info}, config={"callbacks": [langfuse_handler]})
-        
 
     # Chain (find_keyIngredients_tasty_prompt_chain -> feature_chain -> feature_eval_chain)
     find_keyIngredients_tasty_prompt_chain = find_keyIngredients_tasty_prompt | llm | StrOutputParser()
