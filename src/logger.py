@@ -19,3 +19,8 @@ logger_main.addHandler(file_handler)
 logger_db = logging.getLogger('db_logger')
 logger_db.setLevel(logging.DEBUG)
 logger_db.addHandler(file_handler)
+
+# eval_logger 설정
+logger_eval = logging.getLogger('eval_logger')
+logger_eval.setLevel(logging.DEBUG)
+logger_eval.addHandler(file_handler)
