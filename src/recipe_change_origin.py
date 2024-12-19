@@ -1,7 +1,5 @@
 from config import OPENAI_API_KEY, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST
 from langchain_openai import ChatOpenAI
-from langfuse import Langfuse
-from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 from logger import logger_recipe
 from db import MongoDB
@@ -81,41 +79,6 @@ async def get_user_info(recipe_change_type, data):
         }
     logger_recipe.info("사용자 정보 추출 완료 : %s", user_info)
     return user_info
-
-def get_system_prompt(langfuse_prompt_name):
-    """
-        LLM에 넣을 시스템 프롬프트를 가져오는 함수
-        각 프롬프트 파일은 langfuse에 저장되어 있고, tracking 가능
-        
-        Args:
-            langfuse_prompt_name (str): langfuse에 저장된 prompt file name
-        
-        Returns:
-            str: 시스템 프롬프트
-    """
-    langfuse = Langfuse()
-
-    langfuse_text_prompt = langfuse.get_prompt(langfuse_prompt_name)
-    
-    langchain_text_prompt = PromptTemplate.from_template(
-        langfuse_text_prompt.get_langchain_prompt(),
-        metadata={"langfuse_prompt": langfuse_text_prompt},
-    )
-
-    logger_recipe.info("langfuse prompt template 생성 완료")
-    return langchain_text_prompt
-
-def choose_feature(recipe_change_type):
-    if recipe_change_type==1:
-        langfuse_prompt_name = "fridge_recipe_transform"
-    elif recipe_change_type==2:
-        langfuse_prompt_name = "simple_recipe_transform"
-    elif recipe_change_type==3:
-        langfuse_prompt_name = "balance_nutrition"
-    else:
-        logger_recipe.error("Langfuse Prompt Get Error")
-        raise ValueError(f"지원하지 않는 recipe_change_type: {recipe_change_type}")
-    return langfuse_prompt_name
 
 class ChangeRecipe(BaseModel):
     main_changes_from_original_recipe: str = Field(description="기본 레시피와 새로운 레시피 사이의 주요 변경점")
