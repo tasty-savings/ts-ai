@@ -9,7 +9,7 @@ from bson import ObjectId
 from langfuse.callback import CallbackHandler
 from pydantic import BaseModel, Field
 
-langfuse = Langfuse()
+langfuse = Langfuse(debug = True)
 
 llm = ChatOpenAI(
         model="gpt-4o-mini",
@@ -102,6 +102,7 @@ def choose_feature(recipe_change_type):
     return langfuse_prompt_name
 
 class ChangeRecipe(BaseModel):
+    """1,2번 기능 레시피 변환에 대한 pydantic 출력형식"""
     main_changes_from_original_recipe: str = Field(description="기본 레시피와 새로운 레시피 사이의 주요 변경점")
     reason_for_changes: str = Field(description="레시피가 바뀐 이유")
     recipe_cooking_order: list = Field(description="조리 순서")
@@ -114,6 +115,7 @@ class ChangeRecipe(BaseModel):
     unchanged_parts_and_reasons: str = Field(description="기존 레시피에서 바뀌지 않은 부분과 바뀌지 않은 이유")
 
 class RecipeChangeBalanceNutrition(BaseModel):
+    """3번 기능 레시피 변환에 대한 기본 pydantic 출력형식"""
     original_recipe_food_group_composition: str = Field(description="기본 레시피의 식품군 구성")
     user_meal_food_group_requirements: str = Field(description="사용자가 끼니당 필요로 하는 식품군 구성")
     new_recipe_food_group_composition: str = Field(description="새로운 레시피의 식품군 구성")
