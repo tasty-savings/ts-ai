@@ -229,9 +229,9 @@ class AsyncRecipeSearch:
 
         # 최종 스코어 계산
         similarity_score = float(np.mean(similarity_tasks))
-        EXACT_MATCH_WEIGHT = 0.6
-        SIMILARITY_WEIGHT = 0.2
-        VECTOR_SCORE_WEIGHT = 0.2
+        EXACT_MATCH_WEIGHT = 0.74
+        SIMILARITY_WEIGHT = 0.21
+        VECTOR_SCORE_WEIGHT = 0.05
 
         final_score = float(
             EXACT_MATCH_WEIGHT * match_ratio
