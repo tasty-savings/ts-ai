@@ -9,7 +9,7 @@ from bson import ObjectId
 from langfuse.callback import CallbackHandler
 from pydantic import BaseModel, Field
 
-langfuse = Langfuse(debug = True)
+langfuse = Langfuse(debug = False)
 
 llm = ChatOpenAI(
         model="gpt-4o-mini",
@@ -130,6 +130,24 @@ class RecipeChangeBalanceNutrition(BaseModel):
     recipe_type: str = Field(description="조리 타입")
     unchanged_parts_and_reasons: str = Field(description="기존 레시피에서 바뀌지 않은 부분과 바뀌지 않은 이유")
 
+class RecipeAnalyze(BaseModel):
+    """레시피 분석에 대한 pydantic 출력형식"""
+    recipe_description: str = Field(
+        description="레시피 맛에 대한 설명, 조화와 풍미에 대한 간략한 서술"
+    )
+    core_ingredients_roles: list = Field(
+        description="레시피에서 핵심 재료의 역할에 대한 설명 목록"
+    )
+    non_core_ingredients_roles: list = Field(
+        description="레시피에서 비핵심 재료의 역할에 대한 설명 목록"
+    )
+    ingredient_usage_suggestions: str = Field(
+        description="사용자의 재료 선택이 레시피 목적(맛, 질감)과 맞지 않을 경우 배제 또는 조정을 제안합니다."
+    )
+    proposed_ingredient_changes: list = Field(
+        description="제안된 재료 변경 사항, 각 변경 사항의 대체 재료와 이유"
+    )
+
 async def generate_recipe(recipe_info, user_info, recipe_change_type):
     """레시피를 생성하는 함수"""
     # langchain 콜백 시스템을 사용한 langchain 실행 추적.
@@ -137,11 +155,13 @@ async def generate_recipe(recipe_info, user_info, recipe_change_type):
 
     output_parser = JsonOutputParser(pydantic_object=ChangeRecipe)
     output_parser_3 = JsonOutputParser(pydantic_object=RecipeChangeBalanceNutrition)
+    output_parser_analyze = JsonOutputParser(pydantic_object=RecipeAnalyze)
     logger_recipe.info("json 출력 파서 초기화 완료.")
 
     # 레시피의 핵심 재료와 맛 Prompt
     find_keyIngredients_tasty_prompt = get_system_prompt("find_keyIngredients_tasty")
-    
+    find_keyIngredients_tasty_prompt = find_keyIngredients_tasty_prompt.partial(format_instructions=output_parser_analyze.get_format_instructions(), user_info=user_info, recipe_info=recipe_info)
+
     # 기능 Prompt
     feature_prompt = get_system_prompt(choose_feature(recipe_change_type))
     if recipe_change_type == 3:
@@ -159,8 +179,7 @@ async def generate_recipe(recipe_info, user_info, recipe_change_type):
         generate_food_group_ratio_prompt_chain = generate_food_group_ratio_prompt | llm | StrOutputParser()
         # return generate_food_group_ratio_prompt_chain.invoke(input={"recipe_info":recipe_info}, config={"callbacks": [langfuse_handler]})
 
-    # Chain (find_keyIngredients_tasty_prompt_chain -> feature_chain -> feature_eval_chain)
-    find_keyIngredients_tasty_prompt_chain = find_keyIngredients_tasty_prompt | llm | StrOutputParser()
+    find_keyIngredients_tasty_prompt_chain = find_keyIngredients_tasty_prompt | llm | output_parser_analyze
 
     if recipe_change_type==3:
         feature_chain = (
