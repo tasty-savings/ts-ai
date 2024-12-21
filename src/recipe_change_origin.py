@@ -118,31 +118,34 @@ def choose_feature(recipe_change_type):
     return langfuse_prompt_name
 
 class ChangeRecipe(BaseModel):
-    main_changes_from_original_recipe: str = Field(description="'기본 레시피와 새로운 레시피 사이의 주요 변경점'에 대해 이모지를 다양하게 섞어서 귀엽고 깜찍하게 설명")
-    reason_for_changes: str = Field(description="'레시피가 바뀐 이유'에 대해 이모지를 다양하게 섞어서 귀엽고 깜찍하게 설명")
+    """1,2번 기능 레시피 변환에 대한 pydantic 출력형식"""
+    main_changes_from_original_recipe: list = Field(description="'기본 레시피와 새로운 레시피 사이의 주요 변경점'에 대해 이모지를 다양하게 섞어서 귀엽고 깜찍하게 설명")
+    reason_for_changes: list = Field(description="'레시피가 바뀐 이유'에 대해 이모지를 다양하게 섞어서 귀엽고 깜찍하게 설명")
     recipe_cooking_order: list = Field(description="조리 순서")
     recipe_cooking_time: str = Field(description="조리 시간")
     recipe_difficulty: str = Field(description="조리 난이도")
     recipe_ingredients: list = Field(description="조리에 사용되는 재료(양)")
     recipe_menu_name: str = Field(description="새로운 레시피의 이름")
-    recipe_tips: str = Field(description="조리팁")
+    recipe_tips: list = Field(description="조리팁")
     recipe_type: str = Field(description="조리 타입")
-    unchanged_parts_and_reasons: str = Field(description="'기존 레시피에서 바뀌지 않은 부분과 바뀌지 않은 이유'에 대해 이모지를 다양하게 섞어서 귀엽고 깜찍하게 설명")
+    unchanged_parts_and_reasons: list = Field(description="'기존 레시피에서 바뀌지 않은 부분과 바뀌지 않은 이유'에 대해 이모지를 다양하게 섞어서 귀엽고 깜찍하게 설명")
 
 class RecipeChangeBalanceNutrition(BaseModel):
-    original_recipe_food_group_composition: str = Field(description="기본 레시피의 식품군 구성")
-    user_meal_food_group_requirements: str = Field(description="사용자가 끼니당 필요로 하는 식품군 구성")
-    new_recipe_food_group_composition: str = Field(description="새로운 레시피의 식품군 구성")
-    main_changes_from_original_recipe: str = Field(description="기본 레시피와 새로운 레시피 사이의 주요 변경점")
-    reason_for_changes: str = Field(description="레시피가 바뀐 이유")
+    """3번 기능 레시피 변환에 대한 기본 pydantic 출력형식"""
+    original_recipe_food_group_composition: list = Field(description="기본 레시피의 식품군 구성")
+    user_meal_food_group_requirements: list = Field(description="사용자가 끼니당 필요로 하는 식품군 구성")
+    new_recipe_food_group_composition: list = Field(description="새로운 레시피의 식품군 구성")
+    main_changes_from_original_recipe: list = Field(description="'기본 레시피와 새로운 레시피 사이의 주요 변경점'에 대해 이모지를 다양하게 섞어서 귀엽고 깜찍하게 설명")
+    reason_for_changes: list = Field(description="'레시피가 바뀐 이유'에 대해 이모지를 다양하게 섞어서 귀엽고 깜찍하게 설명")
     recipe_cooking_order: list = Field(description="조리 순서")
     recipe_cooking_time: str = Field(description="조리 시간")
     recipe_difficulty: str = Field(description="조리 난이도")
     recipe_ingredients: list = Field(description="조리에 사용되는 재료(양)")
     recipe_menu_name: str = Field(description="새로운 레시피의 이름")
-    recipe_tips: str = Field(description="조리팁")
+    recipe_tips: list = Field(description="조리팁")
     recipe_type: str = Field(description="조리 타입")
-    unchanged_parts_and_reasons: str = Field(description="기존 레시피에서 바뀌지 않은 부분과 바뀌지 않은 이유")
+    unchanged_parts_and_reasons: list = Field(description="'기존 레시피에서 바뀌지 않은 부분과 바뀌지 않은 이유'에 대해 이모지를 다양하게 섞어서 귀엽고 깜찍하게 설명")
+
 
 async def generate_recipe(recipe_info, user_info, recipe_change_type):
     """
