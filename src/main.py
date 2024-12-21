@@ -51,6 +51,11 @@ async def transform_recipe(
             get_recipe_data(recipe_info_index)
         )
         
+        # MongoDB 데이터가 None인 경우 확인
+        if not user_info or not recipe_info:
+            logger_main.error("MongoDB 데이터가 없습니다: user_info=%s, recipe_info=%s", user_info, recipe_info)
+            raise HTTPException(status_code=500, detail="MongoDB 데이터 조회 실패")
+        
         # user, recipe 정보를 가져오면 레시피 생성
         result = await generate_recipe(recipe_info, user_info, recipe_change_type)
         return JSONResponse(content=result, status_code=200)
