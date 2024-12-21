@@ -118,8 +118,8 @@ def choose_feature(recipe_change_type):
     return langfuse_prompt_name
 
 class ChangeRecipe(BaseModel):
-    main_changes_from_original_recipe: str = Field(description="기본 레시피와 새로운 레시피 사이의 주요 변경점에 대해 이모지를 사용하여 사용자 친화적인 톤으로 설명")
-    reason_for_changes: str = Field(description="레시피가 바뀐 이유에 대해 이모지를 사용하여 사용자 친화적인 톤으로 설명")
+    main_changes_from_original_recipe: str = Field(description="기본 레시피와 새로운 레시피 사이의 주요 변경점에 대해 사람 얼굴 이모지를 사용하여 감정적인 표현을 섞어 설명")
+    reason_for_changes: str = Field(description="레시피가 바뀐 이유에 대해 사람 얼굴 이모지를 사용하여 감정적인 표현을 섞어 설명")
     recipe_cooking_order: list = Field(description="조리 순서")
     recipe_cooking_time: str = Field(description="조리 시간")
     recipe_difficulty: str = Field(description="조리 난이도")
@@ -127,7 +127,7 @@ class ChangeRecipe(BaseModel):
     recipe_menu_name: str = Field(description="새로운 레시피의 이름")
     recipe_tips: str = Field(description="조리팁")
     recipe_type: str = Field(description="조리 타입")
-    unchanged_parts_and_reasons: str = Field(description="기존 레시피에서 바뀌지 않은 부분과 바뀌지 않은 이유에 대해 이모지를 사용하여 사용자 친화적인 톤으로 설명")
+    unchanged_parts_and_reasons: str = Field(description="기존 레시피에서 바뀌지 않은 부분과 바뀌지 않은 이유에 대해 사람 얼굴 이모지를 사용하여 감정적인 표현을 섞어 설명")
 
 class RecipeChangeBalanceNutrition(BaseModel):
     original_recipe_food_group_composition: str = Field(description="기본 레시피의 식품군 구성")
