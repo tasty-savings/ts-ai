@@ -76,6 +76,7 @@ def get_system_prompt(langfuse_prompt_name):
     # custom : 캐싱, 재시도, 타임아웃 
     langfuse_text_prompt = langfuse.get_prompt(
         langfuse_prompt_name,
+        {"label": "latest"},
         cache_ttl_seconds=300,  # 캐시 TTL 300초 (default=60)
         max_retries=3,          # 최대 재시도 횟수 3회 (default=2)
         fetch_timeout_seconds=3 # API 호출 타임아웃 3초 (default=20)

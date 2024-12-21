@@ -5,6 +5,7 @@ from recipe_change_origin import generate_recipe, get_user_info, get_recipe_data
 from logger import logger_main
 from typing import Optional
 import asyncio
+import sys
 
 app = FastAPI()
 
@@ -16,8 +17,7 @@ def fetch_prompts_on_startup():
         get_system_prompt("find_keyIngredients_tasty")
         get_system_prompt("generate_food_group_ratio")
     except Exception as e:
-        print(f"Failed to fetch prompt on startup: {e}")
-        sys.exit(1)  # Exit the application if the prompt is not available
+        raise HTTPException(status_code=500, detail=f"Failed to fetch prompt on startup: {e}")
 fetch_prompts_on_startup()
 
 @app.get("/ai/health-check")
@@ -50,7 +50,7 @@ async def transform_recipe(
             get_user_info(recipe_change_type, data),
             get_recipe_data(recipe_info_index)
         )
-        
+
         # MongoDB 데이터가 None인 경우 확인
         if not user_info or not recipe_info:
             logger_main.error("MongoDB 데이터가 없습니다: user_info=%s, recipe_info=%s", user_info, recipe_info)
