@@ -45,22 +45,22 @@ class RecipeDocument:
 class AsyncRateLimiter:
     def __init__(self, calls_per_minute: int):
         self.calls_per_minute = calls_per_minute
-        self.calls = []
+        self.window_size = 60
+        self.bucket_size = 10
+        self.buckets = [0] * (self.window_size // self.bucket_size)
         self._lock = asyncio.Lock()
 
     async def wait_if_needed(self):
         current_time = time.time()
+        bucket_index = int((current_time % self.window_size) / self.bucket_size)
+
         async with self._lock:
-            self.calls = [call_time for call_time in self.calls
-                          if current_time - call_time < 60]
+            self.buckets[bucket_index] += 1
+            total_calls = sum(self.buckets)
 
-            if len(self.calls) >= self.calls_per_minute:
-                sleep_time = 60 - (current_time - self.calls[0])
-                if sleep_time > 0:
-                    await asyncio.sleep(sleep_time)
-                self.calls = self.calls[1:]
-
-            self.calls.append(current_time)
+            if total_calls >= self.calls_per_minute:
+                wait_time = self.bucket_size - (current_time % self.bucket_size)
+                await asyncio.sleep(wait_time)
 
 class RecipeSearchAnalytics:
     """레시피 검색 결과 분석을 위한 클래스"""
@@ -229,8 +229,8 @@ class AsyncRecipeSearch:
 
         # 최종 스코어 계산
         similarity_score = float(np.mean(similarity_tasks))
-        EXACT_MATCH_WEIGHT = 0.74
-        SIMILARITY_WEIGHT = 0.21
+        EXACT_MATCH_WEIGHT = 0.75
+        SIMILARITY_WEIGHT = 0.20
         VECTOR_SCORE_WEIGHT = 0.05
 
         final_score = float(
@@ -267,7 +267,7 @@ class AsyncRecipeSearch:
         initial_results = await asyncio.to_thread(
             cls._index.similarity_search_with_score,
             query,
-            k * 2
+            k * 3
         )
 
         # 스코어 계산

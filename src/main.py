@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
+from contextlib import asynccontextmanager
 import datetime
 from recipe_change_origin import generate_recipe, get_user_info, get_recipe_data
 from recipe_recommend import AsyncRecipeSearch
@@ -14,8 +15,16 @@ import uvicorn
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT_DIR)
 
-app = FastAPI()
 search_engine = AsyncRecipeSearch()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        await search_engine.initialize()
+        logger_main.info("Search engine initialized successfully")
+        yield
+    finally:
+        logger_main.info("Shutting down search engine")
+app = FastAPI(lifespan=lifespan)
 
 @app.get("/ai/health-check")
 async def health_check(request: Request):
@@ -63,10 +72,9 @@ async def recommend(request: Request):
         data = await request.json()
         logger_main.debug("body 정보 추출 완료 : %s", data)
 
-        await search_engine.initialize()
         query_key = ','.join(data.get("search_types", []))
-
         result = await search_engine.search_recipes(query_key)
+
         return result
 
     except Exception as e:
