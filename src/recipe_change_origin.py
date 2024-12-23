@@ -12,13 +12,13 @@ from pydantic import BaseModel, Field
 langfuse = Langfuse(debug = False)
 
 llm = ChatOpenAI(
-        model="gpt-4o-mini",
+        model="gpt-4o",
         temperature=0.0,
         max_tokens=1000,
-        timeout=20,
+        timeout=40,
         api_key=OPENAI_API_KEY
 )
-logger_recipe.info("LLM 초기화 완료.")
+logger_recipe.info(f"LLM 초기화 완료: {llm.model_name}")
 
 def langfuse_tracking():
     """langchain 콜백 시스템을 사용한 langchain 실행 추적"""
@@ -102,10 +102,11 @@ def choose_feature(recipe_change_type):
         raise ValueError(f"지원하지 않는 recipe_change_type: {recipe_change_type}")
     return langfuse_prompt_name
 
+tone = "에 대해 이모지를 다양하게 섞고, 의성어와 의태어를 이용하여 귀엽고 깜찍하게 설명"
 class ChangeRecipe(BaseModel):
     """1,2번 기능 레시피 변환에 대한 pydantic 출력형식"""
-    main_changes_from_original_recipe: list = Field(description="'기본 레시피와 새로운 레시피 사이의 주요 변경점'에 대해 이모지를 다양하게 섞어서 귀엽고 깜찍하게 설명")
-    reason_for_changes: list = Field(description="'레시피가 바뀐 이유'에 대해 이모지를 다양하게 섞어서 귀엽고 깜찍하게 설명")
+    main_changes_from_original_recipe: list = Field(description="'기본 레시피와 새로운 레시피 사이의 주요 변경점'"+tone)
+    reason_for_changes: list = Field(description="'레시피가 바뀐 이유'"+tone)
     recipe_cooking_order: list = Field(description="조리 순서")
     recipe_cooking_time: str = Field(description="조리 시간")
     recipe_difficulty: str = Field(description="조리 난이도")
@@ -113,15 +114,15 @@ class ChangeRecipe(BaseModel):
     recipe_menu_name: str = Field(description="새로운 레시피의 이름")
     recipe_tips: list = Field(description="조리팁")
     recipe_type: str = Field(description="조리 타입")
-    unchanged_parts_and_reasons: list = Field(description="'기존 레시피에서 바뀌지 않은 부분과 바뀌지 않은 이유'에 대해 이모지를 다양하게 섞어서 귀엽고 깜찍하게 설명")
+    unchanged_parts_and_reasons: list = Field(description="'기존 레시피에서 바뀌지 않은 부분과 바뀌지 않은 이유'"+tone)
 
 class RecipeChangeBalanceNutrition(BaseModel):
     """3번 기능 레시피 변환에 대한 기본 pydantic 출력형식"""
     original_recipe_food_group_composition: list = Field(description="기본 레시피의 식품군 구성")
     user_meal_food_group_requirements: list = Field(description="사용자가 끼니당 필요로 하는 식품군 구성")
     new_recipe_food_group_composition: list = Field(description="새로운 레시피의 식품군 구성")
-    main_changes_from_original_recipe: list = Field(description="'기본 레시피와 새로운 레시피 사이의 주요 변경점'에 대해 이모지를 다양하게 섞어서 귀엽고 깜찍하게 설명")
-    reason_for_changes: list = Field(description="'레시피가 바뀐 이유'에 대해 이모지를 다양하게 섞어서 귀엽고 깜찍하게 설명")
+    main_changes_from_original_recipe: list = Field(description="'기본 레시피와 새로운 레시피 사이의 주요 변경점'"+tone)
+    reason_for_changes: list = Field(description="'레시피가 바뀐 이유'"+tone)
     recipe_cooking_order: list = Field(description="조리 순서")
     recipe_cooking_time: str = Field(description="조리 시간")
     recipe_difficulty: str = Field(description="조리 난이도")
@@ -129,7 +130,7 @@ class RecipeChangeBalanceNutrition(BaseModel):
     recipe_menu_name: str = Field(description="새로운 레시피의 이름")
     recipe_tips: list = Field(description="조리팁")
     recipe_type: str = Field(description="조리 타입")
-    unchanged_parts_and_reasons: list = Field(description="'기존 레시피에서 바뀌지 않은 부분과 바뀌지 않은 이유'에 대해 이모지를 다양하게 섞어서 귀엽고 깜찍하게 설명")
+    unchanged_parts_and_reasons: list = Field(description="'기존 레시피에서 바뀌지 않은 부분과 바뀌지 않은 이유'"+tone)
 
 class RecipeAnalyze(BaseModel):
     """레시피 분석에 대한 pydantic 출력형식"""
@@ -148,6 +149,11 @@ class RecipeAnalyze(BaseModel):
     proposed_ingredient_changes: list = Field(
         description="제안된 재료 변경 사항, 각 변경 사항의 대체 재료와 이유"
     )
+
+class Eval(BaseModel):
+    """평가에 대한 출력형식"""
+    score: float = Field(description="0부터 1까지의 연속적인 척도로 평가한 점수를 소숫점 2째자리까지 적으시오.")
+    reason: str = Field(description="점수에 대해 한줄로 이유를 설명하시오.")
 
 async def generate_recipe(recipe_info, user_info, recipe_change_type):
     """레시피를 생성하는 함수"""
@@ -201,15 +207,36 @@ async def generate_recipe(recipe_info, user_info, recipe_change_type):
     # feature_chain.get_graph().print_ascii()
 
     
-    # feature_eval_chain = (
-    #     {"llm_generate_recipe":feature_chain}
-    #     | feature_eval_prompt 
-    #     | llm 
-    #     | output_parser
-    # )
+    feature_eval_chain = (
+        {"llm_generate_recipe":feature_chain}
+        | feature_eval_prompt 
+        | llm 
+        | output_parser
+    )
     
     logger_recipe.info("LLM 레시피 생성 중...")
     feature_eval_result = feature_chain.invoke(input={"user_info":user_info, "recipe_info":recipe_info}, config={"callbacks": [langfuse_handler]})
+    logger_recipe.info("LLM 레시피 생성 완료")
+    
+    return feature_eval_result
+
+async def eval_recipe(recipe_info, user_info, generation, groundTruth, prompt_name):
+    """레시피를 생성하는 함수"""
+    # langchain 콜백 시스템을 사용한 langchain 실행 추적.
+    langfuse_handler = langfuse_tracking()
+
+    output_parser = JsonOutputParser(pydantic_object=Eval)
+    logger_recipe.info("json 출력 파서 초기화 완료.")
+
+    # 레시피의 핵심 재료와 맛 Prompt
+    prompt = get_system_prompt(prompt_name)
+    prompt = prompt.partial(format_instructions=output_parser.get_format_instructions(), user_info=user_info, recipe_info=recipe_info, generation=generation, groundTruth=groundTruth)
+    # prompt = prompt.partial(format_instructions=output_parser.get_format_instructions(), user_info=user_info, recipe_info=recipe_info, generation=generation)
+
+    chain = prompt | llm | output_parser
+
+    logger_recipe.info("LLM 레시피 생성 중...")
+    feature_eval_result = chain.invoke(input={"user_info":user_info, "recipe_info":recipe_info}, config={"callbacks": [langfuse_handler]})
     logger_recipe.info("LLM 레시피 생성 완료")
     
     return feature_eval_result
