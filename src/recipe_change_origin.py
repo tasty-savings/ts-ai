@@ -163,7 +163,7 @@ async def generate_recipe(recipe_info, user_info, recipe_change_type):
     langfuse_handler = langfuse_tracking()
     
     llm = ChatOpenAI(
-        model="gpt-4o-mini",
+        model="gpt-4o",
         temperature=0.0,
         max_tokens=1000,
         timeout=40,
