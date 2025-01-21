@@ -18,9 +18,10 @@
 - LLM을 활용하여 1만8천여개 레시피 데이터 라벨링
 - **Hybrid Search**( RAG + Exact Tag Match )를 활용한 레시피 추천 기능 제공
 
-### 레시피 변형
-- 추가 요망.
-
+### LLM 레시피 변형
+- 냉장고 파먹기 : 사용자 보유 식재료, 기피 식재료, 사용하고 싶은 식재료, 요리 숙련도, 선호 맵기를 반영한 변형
+- 쉽게 만들기 : 레시피 재료 및 조리 단계 간소화
+- 영양맞춤 : 사용자 연령, 활동성, 성별, 섭취 이력을 반영하여 보건복지부 지정 필수 영양소(식품구성자전거)에 맞춘 영양 균형 레시피 변형
 
 ## 🔧 Stack
 - **Language**: Python
@@ -59,12 +60,6 @@
 │   │   ├── recipeinfo_example_dataset.csv
 │   │   └── userinfo_example_dataset.csv
 │   ├── main.py
-│   ├── prompt
-│   │   ├── 조리 숙련도 평가
-│   │   │   ├── 3개 질문.txt
-│   │   │   ├── 상세 질문.txt
-│   │   │   └── 상황질문.txt
-│   │   └── 참고자료.txt
 │   ├── recipe_change.py
 │   ├── recipe_change_origin.py
 │   └── recipe_recommend.py
